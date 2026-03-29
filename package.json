@@ -1,0 +1,9 @@
+{
+  "name": "mini-app-elbrus-way",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal runtime for ElbrusWay deployment bootstrap",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
