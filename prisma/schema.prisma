@@ -22,9 +22,10 @@ enum Plan {
 
 enum PaymentStatus {
   PENDING
-  SUCCEEDED
+  CONFIRMED
   FAILED
-  CANCELLED
+  CANCELED
+  EXPIRED
   REFUNDED
 }
 
@@ -80,17 +81,21 @@ model Message {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
-  userId        String
-  amount        Int
-  tokensGranted BigInt
-  plan          Plan?
-  yookassaId    String?       @unique
-  status        PaymentStatus @default(PENDING)
-  createdAt     DateTime      @default(now())
-  completedAt   DateTime?
+  id                    String        @id @default(cuid())
+  userId                String
+  amount                Int
+  currency              String        @default("RUB")
+  tokensGranted         BigInt
+  plan                  Plan?
+  provider              String        @default("PLATEGA")
+  providerTransactionId String?       @unique
+  paymentMethod         Int?
+  status                PaymentStatus @default(PENDING)
+  callbackPayload       Json?
+  createdAt             DateTime      @default(now())
+  completedAt           DateTime?
 
-  user          User          @relation(fields: [userId], references: [id])
+  user                  User          @relation(fields: [userId], references: [id])
 }
 
 model Transaction {

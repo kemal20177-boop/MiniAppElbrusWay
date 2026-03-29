@@ -29,6 +29,7 @@
 ## Payments
 - `POST /api/payments/create`
 - `POST /api/payments/webhook`
+- `GET /api/payments/:id/status`
 - `GET /api/payments/history`
 
 ## Admin
