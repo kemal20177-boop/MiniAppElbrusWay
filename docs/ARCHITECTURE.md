@@ -8,7 +8,7 @@
   - Redis for rate limit/session cache/model cache
 - **External providers**:
   - RouterAI (`https://routerai.ru/api/v1`)
-  - YooKassa for payment processing
+  - Platega (`https://app.platega.io`) for payment processing
 
 ## Main request lifecycle
 1. User sends message from `/chat`.
@@ -31,9 +31,9 @@
 - Helmet + strict CORS + Redis rate limits
 - Prisma for SQL safety + bcrypt password hashing
 - httpOnly refresh tokens
-- Webhook signature verification for YooKassa
+- Verification of Platega callback credentials and transaction status before balance changes
 
 ## Deployment baseline
 - Docker Compose with app, postgres, redis, nginx
-- HTTPS termination at nginx with certbot certificates
+- HTTPS termination at nginx with certbot certificates for `elbrusway.ru`
 - SSE-friendly nginx proxy config (`proxy_buffering off`)

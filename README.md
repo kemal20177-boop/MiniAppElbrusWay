@@ -7,14 +7,15 @@ MVP foundation for **ElbrusWay AI** — a Russian-focused AI model aggregation p
 - PostgreSQL + Prisma
 - Redis
 - NextAuth
-- YooKassa
+- Platega
 
 ## Project status
 This repository currently contains the initial technical foundation:
 1. Environment variable template
 2. Prisma data model for users, chat, billing, plans, and admin model config
-3. High-level API route map and development phases
+3. High-level API route map, Platega payment contract, and development phases
 4. Docker Compose baseline for app + postgres + redis + nginx
+5. Domain-ready nginx config for `elbrusway.ru`
 
 ## Quick start
 1. Copy env file:
@@ -35,11 +36,16 @@ This repository currently contains the initial technical foundation:
 - `/api/chat` sends prompts to RouterAI and logs token usage.
 - Token balance is debited by `prompt_tokens + completion_tokens`.
 - Low balance warning threshold is enforced.
-- Payments are processed via YooKassa webhook and grant plan/tokens.
+- Payments are created via Platega and confirmed through callback/webhook before granting plan/tokens.
 
 ## Next milestones
 - Build Next.js App Router structure (`/`, `/chat`, `/rates`, `/profile`, `/auth`, `/admin`)
 - Implement NextAuth (credentials + OAuth Yandex/VK)
 - Add RouterAI streaming proxy and usage logging
-- Add billing UI and YooKassa payment flow
+- Add billing UI and Platega payment flow
 - Add admin panel analytics + model controls
+
+## Domain
+- Primary production domain: `https://elbrusway.ru`
+- Billing callback URL: `https://elbrusway.ru/api/payments/webhook`
+- Detailed DNS and SSL steps: `docs/DEPLOYMENT.md`
