@@ -1,0 +1,208 @@
+{
+  "users": [
+    {
+      "id": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "email": "admin@elbrusway.ru",
+      "name": "Admin",
+      "passwordHash": "$2a$12$7/sCu34QdGMIpP/fG0Nm2e3X7.dissgNpms.sPXKStnpRnhiMAS4W",
+      "role": "ADMIN",
+      "plan": "BUSINESS",
+      "tokenBalance": 699999878,
+      "planExpiresAt": null,
+      "createdAt": "2026-03-29T19:23:56.439Z",
+      "updatedAt": "2026-03-29T19:43:51.430Z"
+    },
+    {
+      "id": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "email": "kemal20177@gmail.com",
+      "name": "Кемал",
+      "passwordHash": "$2a$12$MF2cJO1rDGqKa54zqfPPi.FyDgj9Izu2Eg/L6SnI9JCaZ3lzTYT7i",
+      "role": "USER",
+      "plan": "FREE",
+      "tokenBalance": 49877,
+      "planExpiresAt": null,
+      "createdAt": "2026-03-29T19:27:05.412Z",
+      "updatedAt": "2026-03-29T19:27:12.334Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "79b9a0d4-3971-4be5-a9e2-63446a8c0193",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "token": "22e1fdef-a076-41f8-a0f5-760527020452",
+      "expiresAt": "2026-04-28T19:27:05.414Z",
+      "createdAt": "2026-03-29T19:27:05.414Z"
+    },
+    {
+      "id": "33a7c853-af73-4f46-89ad-b52e7ec3fc2c",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "token": "81041469-7f3a-4ca0-9592-a8b5bf4d245c",
+      "expiresAt": "2026-04-28T19:29:05.056Z",
+      "createdAt": "2026-03-29T19:29:05.059Z"
+    },
+    {
+      "id": "178d638e-3ba0-4c53-9cac-40b3b3c7e683",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "token": "23163301-b51b-406e-abf6-15f4ff998075",
+      "expiresAt": "2026-04-28T19:43:58.123Z",
+      "createdAt": "2026-03-29T19:43:58.127Z"
+    }
+  ],
+  "chats": [
+    {
+      "id": "c9c96e93-2294-48d1-98bc-f6700ae05a4d",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "title": "kjk\n\n",
+      "model": "openai/gpt-4o",
+      "systemPrompt": null,
+      "isArchived": false,
+      "createdAt": "2026-03-29T19:43:51.429Z",
+      "updatedAt": "2026-03-29T19:43:51.430Z"
+    },
+    {
+      "id": "3dfe20ca-6c53-4972-84a9-f555d8a3eada",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "title": "еуеукеуе",
+      "model": "openai/gpt-4o",
+      "systemPrompt": null,
+      "isArchived": false,
+      "createdAt": "2026-03-29T19:27:12.333Z",
+      "updatedAt": "2026-03-29T19:27:12.334Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "45ced297-5e52-4072-989d-f8fbed11215c",
+      "chatId": "3dfe20ca-6c53-4972-84a9-f555d8a3eada",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "role": "user",
+      "content": "еуеукеуе",
+      "model": "openai/gpt-4o",
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "costRub": 0,
+      "createdAt": "2026-03-29T19:27:12.334Z"
+    },
+    {
+      "id": "2c4c3de4-59db-4861-9b1f-8724ea5af458",
+      "chatId": "3dfe20ca-6c53-4972-84a9-f555d8a3eada",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "role": "assistant",
+      "content": "ROUTERAI_API_KEY не задан. Это локальный fallback-ответ для MVP. Подключите ключ в .env, чтобы получать реальные ответы от RouterAI.",
+      "model": "openai/gpt-4o",
+      "promptTokens": 3,
+      "completionTokens": 120,
+      "totalTokens": 123,
+      "costRub": 0.006399,
+      "createdAt": "2026-03-29T19:27:12.334Z"
+    },
+    {
+      "id": "e7cd4823-e165-4066-9136-2e68bebb4e8f",
+      "chatId": "c9c96e93-2294-48d1-98bc-f6700ae05a4d",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "role": "user",
+      "content": "kjk\n\n",
+      "model": "openai/gpt-4o",
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "totalTokens": 0,
+      "costRub": 0,
+      "createdAt": "2026-03-29T19:43:51.430Z"
+    },
+    {
+      "id": "d7147edc-77f4-4022-b067-e754b7cd9512",
+      "chatId": "c9c96e93-2294-48d1-98bc-f6700ae05a4d",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "role": "assistant",
+      "content": "ROUTERAI_API_KEY не задан. Это локальный fallback-ответ для MVP. Подключите ключ в .env, чтобы получать реальные ответы от RouterAI.",
+      "model": "openai/gpt-4o",
+      "promptTokens": 2,
+      "completionTokens": 120,
+      "totalTokens": 122,
+      "costRub": 0.006386,
+      "createdAt": "2026-03-29T19:43:51.430Z"
+    }
+  ],
+  "payments": [],
+  "transactions": [
+    {
+      "id": "779c2c50-5492-4c82-8827-7c6d26cedfc5",
+      "userId": "a1295566-ddb8-4bac-9ea4-d9a8ae3213f2",
+      "type": "debit",
+      "tokens": 122,
+      "description": "Списание токенов за модель openai/gpt-4o",
+      "createdAt": "2026-03-29T19:43:51.430Z"
+    },
+    {
+      "id": "a5fd220d-60ee-4b30-a41a-89ed295a53b4",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "type": "debit",
+      "tokens": 123,
+      "description": "Списание токенов за модель openai/gpt-4o",
+      "createdAt": "2026-03-29T19:27:12.334Z"
+    },
+    {
+      "id": "01335399-a1fb-4ecb-b285-951313dca304",
+      "userId": "fa4f8a02-03e4-4058-b4b2-c3686d7f9a3d",
+      "type": "credit",
+      "tokens": 50000,
+      "description": "Стартовый баланс после регистрации",
+      "createdAt": "2026-03-29T19:27:05.412Z"
+    }
+  ],
+  "models": [
+    {
+      "id": "openai/gpt-4o",
+      "displayName": "GPT-4o",
+      "provider": "OpenAI",
+      "isEnabled": true,
+      "minPlan": "BASE",
+      "markupFactor": 2,
+      "inputPrice": 13,
+      "outputPrice": 53,
+      "maxTokens": 4096,
+      "supportsImages": true,
+      "supportsWebSearch": true
+    },
+    {
+      "id": "anthropic/claude-3.7-sonnet",
+      "displayName": "Claude 3.7 Sonnet",
+      "provider": "Anthropic",
+      "isEnabled": true,
+      "minPlan": "PRO",
+      "markupFactor": 2,
+      "inputPrice": 13,
+      "outputPrice": 53,
+      "maxTokens": 4096,
+      "supportsImages": false,
+      "supportsWebSearch": false
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "displayName": "Gemini Flash Image",
+      "provider": "Google",
+      "isEnabled": true,
+      "minPlan": "BASE",
+      "markupFactor": 2,
+      "inputPrice": 13,
+      "outputPrice": 53,
+      "maxTokens": 4096,
+      "supportsImages": true,
+      "supportsWebSearch": false
+    },
+    {
+      "id": "deepseek/deepseek-chat",
+      "displayName": "DeepSeek Chat",
+      "provider": "DeepSeek",
+      "isEnabled": true,
+      "minPlan": "FREE",
+      "markupFactor": 2,
+      "inputPrice": 13,
+      "outputPrice": 53,
+      "maxTokens": 4096,
+      "supportsImages": false,
+      "supportsWebSearch": true
+    }
+  ]
+}

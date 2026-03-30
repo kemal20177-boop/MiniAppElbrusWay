@@ -1,51 +1,81 @@
 # ElbrusWay AI
 
-MVP foundation for **ElbrusWay AI** — a Russian-focused AI model aggregation platform integrated with RouterAI.
+MVP-каркас платформы агрегации AI-моделей для российских пользователей.
 
-## Stack
-- Next.js 14 + TypeScript + Tailwind CSS
-- PostgreSQL + Prisma
+## Что уже есть
+
+- Next.js 14 App Router приложение
+- Дизайн-направление для `elbrusway.ru`
+- Страницы: `/`, `/chat`, `/rates`, `/profile`, `/auth/login`, `/auth/register`, `/admin`
+- API route handlers: `/api/healthz`, `/api/models`, `/api/chat`, `/api/auth/register`, `/api/auth/login`, `/api/payments/create`, `/api/payments/webhook`
+- Prisma-схема под пользователей, чаты, платежи, тарифы и модели
+- Docker / nginx / systemd-файлы для деплоя
+
+## Стек
+
+- Next.js 14 + TypeScript
+- Tailwind CSS
+- Prisma + PostgreSQL
 - Redis
-- NextAuth
-- Platega
+- RouterAI
+- ЮKassa
 
-## Project status
-This repository currently contains the initial technical foundation:
-1. Environment variable template
-2. Prisma data model for users, chat, billing, plans, and admin model config
-3. High-level API route map, Platega payment contract, and development phases
-4. Docker Compose baseline for app + postgres + redis + nginx
-5. Domain-ready nginx config for `elbrusway.ru`
+## Быстрый старт
 
-## Quick start
-1. Copy env file:
-   ```bash
-   cp .env.example .env
-   ```
-2. Start services:
-   ```bash
-   docker compose up -d
-   ```
-3. Run migrations after app scaffold is added:
-   ```bash
-   npx prisma migrate dev
-   ```
+```bash
+cp .env.example .env
+npm install
+npm run build
+npm start
+```
 
-## Core flows
-- Registration gives FREE plan + starter tokens.
-- `/api/chat` sends prompts to RouterAI and logs token usage.
-- Token balance is debited by `prompt_tokens + completion_tokens`.
-- Low balance warning threshold is enforced.
-- Payments are created via Platega and confirmed through callback/webhook before granting plan/tokens.
+Разработка:
 
-## Next milestones
-- Build Next.js App Router structure (`/`, `/chat`, `/rates`, `/profile`, `/auth`, `/admin`)
-- Implement NextAuth (credentials + OAuth Yandex/VK)
-- Add RouterAI streaming proxy and usage logging
-- Add billing UI and Platega payment flow
-- Add admin panel analytics + model controls
+```bash
+npm install
+npm run dev
+```
 
-## Domain
-- Primary production domain: `https://elbrusway.ru`
-- Billing callback URL: `https://elbrusway.ru/api/payments/webhook`
-- Detailed DNS and SSL steps: `docs/DEPLOYMENT.md`
+Prisma:
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+## Что сейчас реализовано как MVP
+
+- UI и структура ключевых страниц
+- Регистрация, логин, logout и cookie-сессии
+- Персистентные чаты, сообщения, платежи и транзакции в PostgreSQL через Prisma
+- Базовый чат-клиент, который ходит в `/api/chat`
+- Proxy к RouterAI с fallback-ответом, если `ROUTERAI_API_KEY` не задан
+- Живой каталог RouterAI через `/api/v1/models` с реальными ценами, контекстом и модальностями
+- Расчет себестоимости сообщений по фактическому `pricing` выбранной модели RouterAI
+- Backend policy-checks перед вызовом RouterAI: whitelist моделей по тарифу, `max_tokens` cap и spending limits через env
+- Rate limiting на `/api/chat`: Redis при наличии `REDIS_URL`, fallback на in-memory window в dev
+- Профиль пользователя, статистика и admin API
+
+## Что ещё надо довести до production
+
+- Добавить полный streaming chat flow через SSE
+- Подключить реальную ЮKassa вместо локального success flow
+- Redis rate limiting и кэш моделей
+- OAuth, email verification, reset password
+- Расширить admin CRUD и аналитику
+
+## Admin bootstrap
+
+- Админ создаётся из `ADMIN_EMAIL`
+- Если база пустая, пароль берётся из `ADMIN_PASSWORD`
+- По умолчанию в шаблоне: `admin@elbrusway.ru / Admin12345!`
+
+## Деплой
+
+Для сервера с `elbrusway.ru` подготовлены:
+
+- `deploy/elbrusway.ru.conf`
+- `deploy/miniappelbrusway.service`
+- `deploy/deploy_elbrusway.sh`
+
+Если SSL уже выпущен, деплой сводится к установке зависимостей, сборке и рестарту `systemd`-сервиса.

@@ -28,10 +28,11 @@
 
 ## Security baselines
 - RouterAI API key only on server `.env`
+- RouterAI `/v1/keys` family is not exposed in user runtime until separate master-key governance is defined
 - Helmet + strict CORS + Redis rate limits
 - Prisma for SQL safety + bcrypt password hashing
 - httpOnly refresh tokens
-- Verification of Platega callback credentials and transaction status before balance changes
+- Verification of Platega callback headers and payment status before balance changes
 
 ## Deployment baseline
 - Docker Compose with app, postgres, redis, nginx

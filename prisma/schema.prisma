@@ -22,31 +22,48 @@ enum Plan {
 
 enum PaymentStatus {
   PENDING
-  CONFIRMED
+  SUCCEEDED
   FAILED
-  CANCELED
-  EXPIRED
+  CANCELLED
   REFUNDED
 }
 
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  passwordHash  String?
-  avatarUrl     String?
-  role          Role      @default(USER)
-  plan          Plan      @default(FREE)
-  tokenBalance  BigInt    @default(0)
-  planExpiresAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+enum ReferralRewardStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
 
-  sessions      Session[]
-  transactions  Transaction[]
-  messages      Message[]
-  chats         Chat[]
-  payments      Payment[]
+model User {
+  id                            String           @id @default(cuid())
+  email                         String           @unique
+  name                          String?
+  passwordHash                  String?
+  avatarUrl                     String?
+  role                          Role             @default(USER)
+  plan                          Plan             @default(FREE)
+  billingPlanId                 String?
+  tokenBalance                  Int              @default(0)
+  planExpiresAt                 DateTime?
+  referralCode                  String?          @unique
+  referredById                  String?
+  referralRewardPercentOverride Int?
+  createdAt                     DateTime         @default(now())
+  updatedAt                     DateTime         @updatedAt
+
+  billingPlan                    PlanConfig?      @relation("UserBillingPlan", fields: [billingPlanId], references: [id], onDelete: SetNull)
+  referredBy                     User?            @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals                      User[]           @relation("UserReferrals")
+  sessions                       Session[]
+  transactions                   Transaction[]
+  messages                       Message[]
+  chats                          Chat[]
+  payments                       Payment[]
+  apiKeys                        ApiKey[]
+  promoCodeUsages                PromoCodeUsage[]
+  referralRewardsAsReferrer      ReferralReward[] @relation("ReferralRewardReferrer")
+  referralRewardsAsReferee       ReferralReward[] @relation("ReferralRewardReferee")
 }
 
 model Chat {
@@ -59,7 +76,7 @@ model Chat {
   updatedAt    DateTime  @updatedAt
   isArchived   Boolean   @default(false)
 
-  user         User      @relation(fields: [userId], references: [id])
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     Message[]
 }
 
@@ -76,37 +93,49 @@ model Message {
   costRub          Float    @default(0)
   createdAt        DateTime @default(now())
 
-  chat             Chat     @relation(fields: [chatId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
+  chat             Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([chatId, createdAt])
 }
 
 model Payment {
-  id                    String        @id @default(cuid())
-  userId                String
-  amount                Int
-  currency              String        @default("RUB")
-  tokensGranted         BigInt
-  plan                  Plan?
-  provider              String        @default("PLATEGA")
-  providerTransactionId String?       @unique
-  paymentMethod         Int?
-  status                PaymentStatus @default(PENDING)
-  callbackPayload       Json?
-  createdAt             DateTime      @default(now())
-  completedAt           DateTime?
+  id               String          @id @default(cuid())
+  userId           String
+  amount           Int
+  currency         String          @default("RUB")
+  tokensGranted    Int
+  plan             Plan?
+  billingPlanId    String?
+  promoCodeId      String?
+  provider         String          @default("MANUAL")
+  providerPaymentId String?        @unique
+  status           PaymentStatus   @default(PENDING)
+  description      String
+  createdAt        DateTime        @default(now())
+  completedAt      DateTime?
 
-  user                  User          @relation(fields: [userId], references: [id])
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billingPlan      PlanConfig?     @relation("PaymentBillingPlan", fields: [billingPlanId], references: [id], onDelete: SetNull)
+  promoCode        PromoCode?      @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  promoCodeUsages  PromoCodeUsage[]
+  referralRewards  ReferralReward[]
+
+  @@index([userId, createdAt])
 }
 
 model Transaction {
   id          String   @id @default(cuid())
   userId      String
   type        String
-  tokens      BigInt
+  tokens      Int
   description String
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Session {
@@ -116,16 +145,28 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PlanConfig {
-  id             String  @id
-  name           String
-  priceRub       Int
-  tokensPerMonth BigInt
-  description    String
-  isActive       Boolean @default(true)
+  id               String    @id @default(cuid())
+  code             String    @unique
+  name             String
+  basePlan         Plan      @default(FREE)
+  priceRub         Int
+  tokensPerMonth   Int
+  requestsPerHour  Int       @default(0)
+  description      String
+  features         Json?
+  sortOrder        Int       @default(0)
+  isActive         Boolean   @default(true)
+  isPublic         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  users            User[]    @relation("UserBillingPlan")
+  payments         Payment[] @relation("PaymentBillingPlan")
+  promoCodes       PromoCode[]
 }
 
 model ModelConfig {
@@ -140,4 +181,77 @@ model ModelConfig {
   maxTokens         Int     @default(4096)
   supportsImages    Boolean @default(false)
   supportsWebSearch Boolean @default(false)
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  tokenHash String   @unique
+  lastUsedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PromoCode {
+  id                  String           @id @default(cuid())
+  code                String           @unique
+  description         String?
+  billingPlanId       String?
+  discountPercent     Int              @default(0)
+  bonusTokens         Int              @default(0)
+  referralPercent     Int?
+  maxUses             Int?
+  usedCount           Int              @default(0)
+  isActive            Boolean          @default(true)
+  expiresAt           DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  billingPlan         PlanConfig?      @relation(fields: [billingPlanId], references: [id], onDelete: SetNull)
+  payments            Payment[]
+  usages              PromoCodeUsage[]
+}
+
+model PromoCodeUsage {
+  id          String    @id @default(cuid())
+  promoCodeId String
+  userId      String
+  paymentId   String?
+  createdAt   DateTime  @default(now())
+
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment     Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model ReferralProgram {
+  id                     String   @id
+  isEnabled              Boolean  @default(true)
+  defaultRewardPercent   Int      @default(10)
+  refereeBonusTokens     Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model ReferralReward {
+  id            String               @id @default(cuid())
+  referrerId    String
+  refereeId     String
+  paymentId     String?
+  rewardPercent Int
+  amountRub     Int
+  status        ReferralRewardStatus @default(PENDING)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  referrer      User                 @relation("ReferralRewardReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee       User                 @relation("ReferralRewardReferee", fields: [refereeId], references: [id], onDelete: Cascade)
+  payment       Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId, createdAt])
+  @@index([refereeId, createdAt])
 }
