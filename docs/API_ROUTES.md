@@ -15,10 +15,13 @@
 - `DELETE /api/chats/:id`
 - `GET /api/chats/:id/messages`
 - `POST /api/chat`
+- `POST /api/chat/responses`
+- `POST /api/chat/stream`
 - `POST /api/chat/stop`
 
 ## Models
 - `GET /api/models`
+- `POST /api/embeddings`
 
 ## User
 - `GET /api/user/profile`

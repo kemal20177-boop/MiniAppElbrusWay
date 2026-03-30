@@ -1,0 +1,15 @@
+[Unit]
+Description=ElbrusWay Next.js application
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/MiniAppElbrusWay
+EnvironmentFile=/root/MiniAppElbrusWay/.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

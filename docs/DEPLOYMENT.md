@@ -22,8 +22,8 @@
   - `/etc/letsencrypt/live/elbrusway.ru/privkey.pem`
 
 ## Platega
-- Set callback URL in the Platega cabinet to:
+- Set callback URL in Platega merchant cabinet to:
   - `https://elbrusway.ru/api/payments/webhook`
 - Set return URLs to:
-  - `https://elbrusway.ru/profile/billing/success`
-  - `https://elbrusway.ru/profile/billing/fail`
+  - `https://elbrusway.ru/payment/success`
+  - `https://elbrusway.ru/payment/fail`

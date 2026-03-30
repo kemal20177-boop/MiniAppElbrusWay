@@ -1,48 +1,44 @@
-# Platega integration contract
+# Platega integration notes
 
 ## Environment
-- `PLATEGA_API_BASE_URL=https://app.platega.io`
+- `PLATEGA_BASE_URL=https://app.platega.io`
 - `PLATEGA_MERCHANT_ID=<merchant id>`
 - `PLATEGA_SECRET_KEY=<api key>`
-- `PLATEGA_CALLBACK_URL=https://elbrusway.ru/api/payments/webhook`
-- `PLATEGA_SUCCESS_URL=https://elbrusway.ru/profile/billing/success`
-- `PLATEGA_FAIL_URL=https://elbrusway.ru/profile/billing/fail`
+- `PLATEGA_PAYMENT_METHOD=2`
+- `NEXT_PUBLIC_APP_URL=https://elbrusway.ru`
 
 ## Payment creation
-- Endpoint: `POST https://app.platega.io/transaction/process`
-- Required headers:
-  - `Content-Type: application/json`
-  - `X-MerchantId: <merchant id>`
-  - `X-Secret: <api key>`
-- Minimal request shape:
+- Route: `POST /api/payments/create`
+- Provider API: `POST /transaction/process`
+- Request headers:
+  - `X-MerchantId`
+  - `X-Secret`
+- Current request payload:
+  - `paymentMethod`
+  - `paymentDetails.amount`
+  - `paymentDetails.currency`
+  - `description`
+  - `return`
+  - `failedUrl`
+  - `payload`
+- Response field used for redirect: `redirect`
 
-```json
-{
-  "paymentMethod": 2,
-  "id": "payment-uuid",
-  "paymentDetails": {
-    "amount": 970,
-    "currency": "RUB"
-  },
-  "description": "ElbrusWay plan upgrade",
-  "return": "https://elbrusway.ru/profile/billing/success",
-  "failedUrl": "https://elbrusway.ru/profile/billing/fail",
-  "payload": "internal-payment-id"
-}
-```
+## Status sync
+- Local route: `GET /api/payments/:id/status`
+- Provider API: `GET /transaction/{id}`
+- Pending payments are synced against Platega before returning status to the user.
 
-## Callback handling
-- Callback URL is configured in the Platega merchant cabinet.
-- Platega sends `POST` callbacks and retries up to 3 times if the endpoint does not answer with success.
-- Callback statuses to handle:
-  - `CONFIRMED`
-  - `CANCELED`
-- Webhook handler should:
-  1. Verify merchant credentials and match `providerTransactionId`
-  2. Persist the full callback body into `callbackPayload`
-  3. Apply tokens and plan changes only for `CONFIRMED`
-  4. Mark unsuccessful payments as `CANCELED` or `FAILED`
+## Webhook handling
+- Route: `POST /api/payments/webhook`
+- Platega sends:
+  - headers `X-MerchantId`, `X-Secret`
+  - JSON body with `id`, `amount`, `currency`, `status`, `paymentMethod`
+- Status mapping:
+  - `CONFIRMED` -> `SUCCEEDED`
+  - `CANCELED` -> `CANCELLED`
+  - `CHARGEBACK` -> `REFUNDED`
+- Successful webhook is idempotent: repeated `CONFIRMED` callbacks do not double-credit the user.
 
-## Status polling
-- Endpoint: `GET https://app.platega.io/transaction/{id}`
-- Use as a reconciliation step if callback delivery is delayed.
+## Return pages
+- `https://elbrusway.ru/payment/success?paymentId=<local id>`
+- `https://elbrusway.ru/payment/fail?paymentId=<local id>`
