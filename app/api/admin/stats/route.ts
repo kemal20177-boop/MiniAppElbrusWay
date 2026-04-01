@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAdminUser } from "@/lib/admin";
-import { PaymentStatus, Plan } from "@prisma/client";
+import { JobStatus, PaymentStatus, Plan } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getRouterCredits } from "@/lib/app";
 import { ensureDefaultPlanConfigs, ensureReferralProgram } from "@/lib/billing";
@@ -25,7 +25,14 @@ export async function GET(request: NextRequest) {
       promoCodesCount,
       activePromoCodesCount,
       referralProgram,
-      referralRewardAggregate
+      referralRewardAggregate,
+      filesCount,
+      documentsCount,
+      projectsCount,
+      storageAggregate,
+      searchRuns,
+      exportsCount,
+      failedJobsCount
     ] = await Promise.all([
       prisma.user.count(),
       prisma.payment.aggregate({
@@ -50,7 +57,14 @@ export async function GET(request: NextRequest) {
       prisma.referralReward.aggregate({
         _sum: { amountRub: true },
         _count: { _all: true }
-      })
+      }),
+      prisma.userFile.count({ where: { deletedAt: null } }),
+      prisma.document.count({ where: { deletedAt: null } }),
+      prisma.project.count({ where: { deletedAt: null } }),
+      prisma.userFile.aggregate({ where: { deletedAt: null }, _sum: { sizeBytes: true } }),
+      prisma.searchSession.count(),
+      prisma.documentExport.count(),
+      prisma.apiJob.count({ where: { status: JobStatus.FAILED } })
     ]);
 
     return apiSuccess({
@@ -63,6 +77,13 @@ export async function GET(request: NextRequest) {
         plansCount,
         promoCodesCount,
         activePromoCodesCount,
+        filesCount,
+        documentsCount,
+        projectsCount,
+        storageBytes: Number(storageAggregate._sum.sizeBytes || 0),
+        searchRuns,
+        exportsCount,
+        failedJobsCount,
         referralRewardsCount: referralRewardAggregate._count._all,
         referralRewardsRub: referralRewardAggregate._sum.amountRub || 0,
         referralProgram,

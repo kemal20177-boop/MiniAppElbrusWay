@@ -3,10 +3,31 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
-import { DocumentExportFormat, DocumentStatus } from "@prisma/client";
+import { DocumentExportFormat, DocumentStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getFileForUser } from "@/lib/files";
 
 const exportsRoot = path.join(process.cwd(), "storage", "exports");
+
+type DocumentTemplate = "proposal" | "report" | "spec" | "faq" | "resume" | "presentation" | "article";
+type DocumentTone = "neutral" | "formal" | "executive" | "friendly" | "technical";
+type DocumentStructure = "brief" | "standard" | "detailed";
+type DocumentLength = "short" | "medium" | "long";
+type DocumentSection = {
+  key: string;
+  title: string;
+  content: string;
+};
+type DocumentSourceModel = {
+  format: "structured-markdown";
+  template: DocumentTemplate;
+  tone: DocumentTone;
+  structure: DocumentStructure;
+  length: DocumentLength;
+  prompt: string;
+  sections: DocumentSection[];
+  metadata?: Record<string, unknown>;
+};
 
 function markdownToPlainText(markdown: string) {
   return markdown
@@ -18,35 +39,129 @@ function markdownToPlainText(markdown: string) {
     .trim();
 }
 
-function buildDocumentMarkdown(title: string, prompt: string) {
-  const cleanPrompt = prompt.trim();
-  return `# ${title}
+function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё\s-]/gi, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 40);
+}
 
-## Цель
-${cleanPrompt}
+function getTemplateSections(template: DocumentTemplate, structure: DocumentStructure) {
+  const detail = structure === "detailed";
+  const brief = structure === "brief";
 
-## Краткое резюме
-- Ключевая задача: ${cleanPrompt}
-- Формат: production-ready материал для дальнейшего редактирования в Canvas
-- Следующий шаг: доработать разделы и экспортировать результат
+  switch (template) {
+    case "proposal":
+      return ["Контекст", "Цель", "Предложение", "План внедрения", detail ? "Риски и trade-offs" : "Риски", "Следующие шаги"];
+    case "report":
+      return ["Резюме", "Контекст", "Наблюдения", "Метрики", detail ? "Выводы и рекомендации" : "Рекомендации"];
+    case "spec":
+      return ["Резюме", "Требования", "Архитектура", "API и данные", "Ограничения", "Критерии приёмки"];
+    case "faq":
+      return brief ? ["Обзор", "FAQ"] : ["Обзор", "Для кого это", "FAQ", "Следующие шаги"];
+    case "resume":
+      return ["Позиционирование", "Опыт", "Навыки", "Достижения", "Контакты"];
+    case "presentation":
+      return ["Титульный слайд", "Проблема", "Решение", "План", "Итог"];
+    default:
+      return ["Введение", "Основная часть", "Ключевые тезисы", "Заключение"];
+  }
+}
 
-## Основные разделы
-### Контекст
-Опиши исходные вводные, ограничения и ожидаемый результат.
+function generateDocumentSection(params: {
+  template: DocumentTemplate;
+  sectionTitle: string;
+  prompt: string;
+  tone: DocumentTone;
+  length: DocumentLength;
+  sourceExcerpt?: string;
+}) {
+  const toneLabel =
+    params.tone === "formal"
+      ? "Формальный тон"
+      : params.tone === "executive"
+        ? "Executive summary стиль"
+        : params.tone === "technical"
+          ? "Техническая подача"
+          : params.tone === "friendly"
+            ? "Дружелюбная подача"
+            : "Нейтральный тон";
+  const lengthLines = params.length === "long" ? 4 : params.length === "medium" ? 3 : 2;
+  const lines = [
+    `${toneLabel}. Раздел "${params.sectionTitle}" для шаблона ${params.template}.`,
+    `Основной фокус: ${params.prompt}.`,
+    params.sourceExcerpt ? `Контекст из источника: ${params.sourceExcerpt}.` : null,
+    `Практический акцент: что нужно сделать, проверить и зафиксировать в этом разделе.`,
+    `Итог раздела: конкретные выводы и следующий шаг.`
+  ].filter(Boolean) as string[];
 
-### Решение
-Сформулируй основной подход, архитектуру или план действий.
+  return lines.slice(0, lengthLines).join("\n\n");
+}
 
-### Детали реализации
-- Какие сущности или процессы участвуют
-- Какие риски и trade-offs нужно учитывать
-- Какие метрики или критерии проверки будут использоваться
+export function generateDocumentStructure(params: {
+  title: string;
+  prompt: string;
+  template?: DocumentTemplate;
+  tone?: DocumentTone;
+  structure?: DocumentStructure;
+  length?: DocumentLength;
+  sourceText?: string;
+}) {
+  const template = params.template || "report";
+  const tone = params.tone || "neutral";
+  const structure = params.structure || "standard";
+  const length = params.length || "medium";
+  const sourceExcerpt = params.sourceText?.slice(0, 260);
+  const sections = getTemplateSections(template, structure).map((title) => ({
+    key: slugify(title) || randomUUID(),
+    title,
+    content: generateDocumentSection({
+      template,
+      sectionTitle: title,
+      prompt: params.prompt,
+      tone,
+      length,
+      sourceExcerpt
+    })
+  }));
 
-### Следующие шаги
-1. Уточнить требования и источники.
-2. Доработать содержание в Canvas.
-3. Выполнить экспорт в нужный формат.
-`;
+  return {
+    format: "structured-markdown",
+    template,
+    tone,
+    structure,
+    length,
+    prompt: params.prompt,
+    sections,
+    metadata: {
+      generatedFromSource: Boolean(params.sourceText)
+    }
+  } satisfies DocumentSourceModel;
+}
+
+export function updateDocumentSection(source: DocumentSourceModel, sectionKey: string, content: string) {
+  return {
+    ...source,
+    sections: source.sections.map((section) => (section.key === sectionKey ? { ...section, content } : section))
+  } satisfies DocumentSourceModel;
+}
+
+function sourceToMarkdown(title: string, source: DocumentSourceModel) {
+  return [
+    `# ${title}`,
+    "",
+    ...source.sections.flatMap((section) => [`## ${section.title}`, section.content, ""])
+  ].join("\n");
+}
+
+function summarizeSource(source: DocumentSourceModel) {
+  return markdownToPlainText(sourceToMarkdown("document", source)).slice(0, 240);
+}
+
+export function documentToCanvas(title: string, source: DocumentSourceModel) {
+  return sourceToMarkdown(title, source);
 }
 
 function buildPdfBuffer(title: string, text: string) {
@@ -243,7 +358,7 @@ async function createExportArtifact(params: {
 }) {
   await ensureExportsRoot();
   const safeTitle = params.title.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80) || "document";
-  const filename = `${params.documentId}-${randomUUID()}-${safeTitle}.${params.format.toLowerCase()}`;
+  const filename = `${safeTitle}-${params.documentId}.${params.format.toLowerCase()}`;
   const storageKey = path.join("documents", filename);
   const absolutePath = path.join(exportsRoot, filename);
   let buffer: Buffer;
@@ -270,8 +385,22 @@ async function createExportArtifact(params: {
   return {
     storageKey,
     fileSizeBytes: buffer.byteLength,
-    absolutePath
+    absolutePath,
+    filename
   };
+}
+
+function parseDocumentSource(source: Prisma.JsonValue | null | undefined) {
+  const parsed = (source || null) as DocumentSourceModel | null;
+  if (parsed?.format === "structured-markdown" && Array.isArray(parsed.sections)) {
+    return parsed;
+  }
+
+  return generateDocumentStructure({
+    title: "Документ",
+    prompt: typeof (source as { content?: unknown } | null)?.content === "string" ? String((source as { content?: string }).content) : "",
+    template: "report"
+  });
 }
 
 export async function listDocumentsForUser(userId: string, projectId?: string) {
@@ -290,7 +419,7 @@ export async function listDocumentsForUser(userId: string, projectId?: string) {
     include: {
       versions: {
         orderBy: { version: "desc" },
-        take: 1
+        take: 2
       },
       exports: {
         orderBy: { createdAt: "desc" }
@@ -323,6 +452,16 @@ export async function getDocumentForUser(userId: string, documentId: string) {
       },
       exports: {
         orderBy: { createdAt: "desc" }
+      },
+      projectLinks: {
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true
+            }
+          }
+        }
       }
     }
   });
@@ -334,12 +473,24 @@ export async function createDocumentForUser(params: {
   prompt: string;
   projectId?: string;
   sourceFileId?: string;
+  sourceChatId?: string;
+  template?: DocumentTemplate;
+  tone?: DocumentTone;
+  structure?: DocumentStructure;
+  length?: DocumentLength;
 }) {
-  const markdown = buildDocumentMarkdown(params.title, params.prompt);
-  const source = {
-    format: "markdown",
-    content: markdown
-  };
+  const sourceFile = params.sourceFileId ? await getFileForUser(params.userId, params.sourceFileId) : null;
+  const sourceText = sourceFile?.extractedText || undefined;
+  const source = generateDocumentStructure({
+    title: params.title,
+    prompt: params.prompt,
+    template: params.template,
+    tone: params.tone,
+    structure: params.structure,
+    length: params.length,
+    sourceText
+  });
+  const markdown = sourceToMarkdown(params.title, source);
 
   const document = await prisma.$transaction(async (tx) => {
     const created = await tx.document.create({
@@ -347,9 +498,10 @@ export async function createDocumentForUser(params: {
         userId: params.userId,
         sourceFileId: params.sourceFileId || null,
         title: params.title,
+        templateKey: source.template,
         status: DocumentStatus.READY,
-        source,
-        summary: params.prompt.slice(0, 240)
+        source: source as Prisma.InputJsonValue,
+        summary: summarizeSource(source)
       }
     });
 
@@ -359,7 +511,8 @@ export async function createDocumentForUser(params: {
         userId: params.userId,
         version: 1,
         title: params.title,
-        source
+        source: source as Prisma.InputJsonValue,
+        changeSummary: "Первичная генерация структуры"
       }
     });
 
@@ -377,6 +530,8 @@ export async function createDocumentForUser(params: {
       data: {
         userId: params.userId,
         projectId: params.projectId || null,
+        sourceChatId: params.sourceChatId || null,
+        sourceFileId: params.sourceFileId || null,
         title: params.title,
         kind: "MARKDOWN",
         currentContent: markdown
@@ -403,8 +558,11 @@ export async function updateDocumentForUser(params: {
   userId: string;
   documentId: string;
   title?: string;
-  content: string;
+  content?: string;
+  sectionKey?: string;
   changeSummary?: string;
+  regenerateSummary?: boolean;
+  archived?: boolean;
 }) {
   const current = await prisma.document.findFirst({
     where: {
@@ -424,20 +582,34 @@ export async function updateDocumentForUser(params: {
     throw new Error("DOCUMENT_NOT_FOUND");
   }
 
+  const currentSource = parseDocumentSource(current.source);
+  let nextSource = currentSource;
+
+  if (params.sectionKey && params.content !== undefined) {
+    nextSource = updateDocumentSection(currentSource, params.sectionKey, params.content);
+  } else if (params.content !== undefined) {
+    nextSource = {
+      ...currentSource,
+      sections: currentSource.sections.length > 0
+        ? [{ ...currentSource.sections[0], content: params.content }, ...currentSource.sections.slice(1)]
+        : [{ key: "content", title: "Content", content: params.content }]
+    };
+  }
+
   const nextVersion = (current.versions[0]?.version || 0) + 1;
   const nextTitle = params.title || current.title;
-  const source = {
-    format: "markdown",
-    content: params.content
-  };
+  const nextStatus = params.archived ? DocumentStatus.ARCHIVED : current.status;
+  const summary = params.regenerateSummary ? summarizeSource(nextSource) : current.summary || summarizeSource(nextSource);
 
   await prisma.$transaction(async (tx) => {
     await tx.document.update({
       where: { id: current.id },
       data: {
         title: nextTitle,
-        source,
-        summary: markdownToPlainText(params.content).slice(0, 240),
+        source: nextSource as Prisma.InputJsonValue,
+        summary,
+        status: nextStatus,
+        templateKey: nextSource.template,
         updatedAt: new Date()
       }
     });
@@ -448,13 +620,60 @@ export async function updateDocumentForUser(params: {
         userId: params.userId,
         version: nextVersion,
         title: nextTitle,
-        source,
-        changeSummary: params.changeSummary || null
+        source: nextSource as Prisma.InputJsonValue,
+        changeSummary: params.changeSummary || (params.sectionKey ? `Обновлён раздел ${params.sectionKey}` : "Обновление документа")
       }
     });
   });
 
   return getDocumentForUser(params.userId, current.id);
+}
+
+export async function archiveDocumentForUser(userId: string, documentId: string) {
+  const document = await prisma.document.findFirst({
+    where: {
+      id: documentId,
+      userId,
+      deletedAt: null
+    }
+  });
+
+  if (!document) {
+    throw new Error("DOCUMENT_NOT_FOUND");
+  }
+
+  await prisma.document.update({
+    where: { id: document.id },
+    data: {
+      status: DocumentStatus.ARCHIVED
+    }
+  });
+
+  return getDocumentForUser(userId, document.id);
+}
+
+export async function deleteDocumentForUser(userId: string, documentId: string) {
+  const document = await prisma.document.findFirst({
+    where: {
+      id: documentId,
+      userId,
+      deletedAt: null
+    }
+  });
+
+  if (!document) {
+    throw new Error("DOCUMENT_NOT_FOUND");
+  }
+
+  await prisma.document.update({
+    where: { id: document.id },
+    data: {
+      deletedAt: new Date(),
+      status: DocumentStatus.DELETED
+    }
+  });
+
+  return { id: document.id };
 }
 
 export async function exportDocumentForUser(params: {
@@ -468,8 +687,8 @@ export async function exportDocumentForUser(params: {
     throw new Error("DOCUMENT_NOT_FOUND");
   }
 
-  const source = (document.source || {}) as { content?: string };
-  const markdown = String(source.content || "");
+  const source = parseDocumentSource(document.source);
+  const markdown = sourceToMarkdown(document.title, source);
   const artifact = await createExportArtifact({
     documentId: document.id,
     userId: params.userId,
@@ -490,6 +709,8 @@ export async function exportDocumentForUser(params: {
 
   return {
     exportRecord,
-    absolutePath: artifact.absolutePath
+    absolutePath: artifact.absolutePath,
+    filename: artifact.filename,
+    markdown
   };
 }

@@ -3,10 +3,13 @@ import { requireCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { analyzeFileForUser } from "@/lib/files";
 import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
+import { fileAnalyzeSchema } from "@/lib/validators";
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireCurrentUser(request);
+    const body = await request.json().catch(() => ({}));
+    const payload = fileAnalyzeSchema.parse(body);
     const analysis = await analyzeFileForUser(user.id, params.id);
 
     await writeAuditLog({
@@ -15,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       entityType: "file",
       entityId: params.id,
       details: {
-        mode: "summary"
+        mode: payload.mode
       }
     });
 

@@ -2,7 +2,7 @@
   "name": "mini-app-elbrus-way",
   "version": "1.0.0",
   "private": true,
-  "description": "ElbrusWay AI MVP",
+  "description": "ElbrusWay AI workspace platform",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -58,6 +58,21 @@ export const createChatSchema = z.object({
   projectId: z.string().min(1).optional()
 });
 
+export const chatListQuerySchema = z.object({
+  query: z.string().trim().max(200).optional(),
+  pinned: z.coerce.boolean().optional(),
+  archived: z.coerce.boolean().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20)
+});
+
+export const chatUpdateSchema = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
+  isPinned: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  deletedAt: z.boolean().optional()
+});
+
 export const profileUpdateSchema = z.object({
   name: z.string().min(2).max(120)
 });
@@ -147,7 +162,30 @@ export const fileUploadMetadataSchema = z.object({
 });
 
 export const fileAnalyzeSchema = z.object({
-  mode: z.enum(["summary", "vision"]).default("summary")
+  mode: z.enum(["summary", "vision", "ocr", "data", "audio", "video"]).default("summary")
+});
+
+export const fileListQuerySchema = z.object({
+  projectId: z.string().min(1).optional(),
+  kind: z.enum(["DOCUMENT", "IMAGE", "DATA", "AUDIO", "VIDEO", "OTHER"]).optional(),
+  status: z.enum(["UPLOADING", "READY", "FAILED", "DELETED"]).optional(),
+  query: z.string().trim().max(200).optional()
+});
+
+export const fileBulkActionSchema = z.object({
+  fileIds: z.array(z.string().min(1)).min(1).max(50),
+  action: z.enum(["delete", "attachToChat", "addToProject"]),
+  chatId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional()
+});
+
+export const multiUploadSchema = z.object({
+  projectId: z.string().min(1).optional(),
+  files: z.array(z.object({
+    name: z.string().min(1),
+    size: z.number().int().positive(),
+    type: z.string().min(1)
+  })).min(1).max(20)
 });
 
 export const searchSessionCreateSchema = z.object({
@@ -155,20 +193,29 @@ export const searchSessionCreateSchema = z.object({
   projectId: z.string().min(1).optional(),
   chatId: z.string().min(1).optional(),
   latestOnly: z.boolean().optional(),
-  depth: z.enum(["SHORT", "STANDARD", "DEEP"]).default("STANDARD")
+  depth: z.enum(["SHORT", "STANDARD", "DEEP"]).default("STANDARD"),
+  sessionId: z.string().min(1).optional()
 });
 
 export const documentCreateSchema = z.object({
   title: z.string().trim().min(2).max(160),
   prompt: z.string().trim().min(2).max(8000),
   projectId: z.string().min(1).optional(),
-  sourceFileId: z.string().min(1).optional()
+  sourceFileId: z.string().min(1).optional(),
+  sourceChatId: z.string().min(1).optional(),
+  template: z.enum(["proposal", "report", "spec", "faq", "resume", "presentation", "article"]).default("spec"),
+  tone: z.enum(["neutral", "formal", "executive", "friendly", "technical"]).default("technical"),
+  structure: z.enum(["brief", "standard", "detailed"]).default("standard"),
+  length: z.enum(["short", "medium", "long"]).default("medium")
 });
 
 export const documentUpdateSchema = z.object({
   title: z.string().trim().min(2).max(160).optional(),
-  content: z.string().min(1),
-  changeSummary: z.string().trim().max(400).optional()
+  content: z.string().min(1).optional(),
+  changeSummary: z.string().trim().max(400).optional(),
+  sectionKey: z.string().trim().max(80).optional(),
+  regenerateSummary: z.boolean().optional(),
+  archived: z.boolean().optional()
 });
 
 export const documentExportSchema = z.object({
@@ -188,4 +235,65 @@ export const canvasUpdateSchema = z.object({
   title: z.string().trim().min(2).max(160).optional(),
   content: z.string().min(1),
   prompt: z.string().trim().max(4000).optional()
+});
+
+export const canvasRewriteSchema = z.object({
+  action: z.enum(["improve", "shorten", "translate", "explain", "refactor"]),
+  selection: z.string().min(1).optional(),
+  prompt: z.string().trim().max(4000).optional(),
+  language: z.string().trim().max(32).optional()
+});
+
+export const canvasRollbackSchema = z.object({
+  version: z.number().int().min(1)
+});
+
+export const toolImageSchema = z.object({
+  mode: z.enum(["text-to-image", "image-to-image"]).default("text-to-image"),
+  prompt: z.string().trim().min(2).max(4000),
+  sourceFileId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
+  style: z.string().trim().max(120).optional(),
+  aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3"]).default("1:1")
+});
+
+export const toolAudioSchema = z.object({
+  mode: z.enum(["transcription", "tts"]),
+  text: z.string().trim().max(8000).optional(),
+  sourceFileId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
+  voice: z.string().trim().max(64).optional()
+}).refine((payload) => {
+  if (payload.mode === "transcription") {
+    return Boolean(payload.sourceFileId);
+  }
+
+  return Boolean(payload.text);
+}, { message: "Недостаточно данных для audio tool" });
+
+export const toolVideoSchema = z.object({
+  mode: z.enum(["storyboard", "task"]),
+  prompt: z.string().trim().min(2).max(4000),
+  projectId: z.string().min(1).optional(),
+  durationSec: z.number().int().min(5).max(180).default(15)
+});
+
+export const toolVisionSchema = z.object({
+  mode: z.enum(["ocr", "describe", "screenshot-analysis", "chart-analysis", "ask"]),
+  sourceFileId: z.string().min(1),
+  question: z.string().trim().max(4000).optional(),
+  projectId: z.string().min(1).optional()
+});
+
+export const adminListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  query: z.string().trim().max(200).optional(),
+  sort: z.string().trim().max(64).optional(),
+  direction: z.enum(["asc", "desc"]).default("desc"),
+  status: z.string().trim().max(64).optional(),
+  kind: z.string().trim().max(64).optional(),
+  userId: z.string().trim().max(64).optional(),
+  ownerId: z.string().trim().max(64).optional(),
+  projectId: z.string().trim().max(64).optional()
 });

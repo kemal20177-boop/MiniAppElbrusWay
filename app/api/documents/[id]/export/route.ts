@@ -29,7 +29,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     return apiSuccess({
       export: result.exportRecord,
-      downloadPath: result.absolutePath
+      downloadPath: result.absolutePath,
+      filename: result.filename,
+      sizeBytes: result.exportRecord.fileSizeBytes
     });
   } catch (error) {
     const message = resolveErrorMessage(error);

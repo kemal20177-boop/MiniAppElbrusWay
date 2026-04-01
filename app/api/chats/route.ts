@@ -1,35 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createChatForUser } from "@/lib/app";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { createChatSchema } from "@/lib/validators";
+import { createChatSchema, chatListQuerySchema } from "@/lib/validators";
+import { apiError, apiSuccess, buildPaginationMeta, resolveErrorMessage } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUserFromRequest(request);
   if (!user) {
-    return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    return apiError("UNAUTHORIZED", "Требуется авторизация", 401);
   }
 
-  const chats = await prisma.chat.findMany({
-    where: { userId: user.id },
-    orderBy: { updatedAt: "desc" }
+  const query = chatListQuerySchema.parse({
+    query: request.nextUrl.searchParams.get("query") || undefined,
+    pinned: request.nextUrl.searchParams.get("pinned") || undefined,
+    page: request.nextUrl.searchParams.get("page") || undefined,
+    pageSize: request.nextUrl.searchParams.get("pageSize") || undefined
   });
+  const page = query.page || 1;
+  const pageSize = query.pageSize || 20;
+  const where = {
+    userId: user.id,
+    deletedAt: null,
+    ...(query.query ? { title: { contains: query.query, mode: "insensitive" as const } } : {}),
+    ...(query.pinned !== undefined ? { isPinned: query.pinned } : {})
+  };
+  const [chats, total] = await Promise.all([
+    prisma.chat.findMany({
+      where,
+      orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    }),
+    prisma.chat.count({ where })
+  ]);
 
-  return NextResponse.json({ ok: true, chats });
+  return apiSuccess({ chats }, undefined, buildPaginationMeta({ page, pageSize, total }));
 }
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUserFromRequest(request);
   if (!user) {
-    return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    return apiError("UNAUTHORIZED", "Требуется авторизация", 401);
   }
 
   try {
     const body = await request.json().catch(() => ({}));
     const payload = createChatSchema.parse(body);
     const chat = await createChatForUser(user.id, payload.model, payload.title || "Новый чат", payload.projectId);
-    return NextResponse.json({ ok: true, chat });
+    return apiSuccess({ chat }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: "CHAT_CREATE_FAILED", message: (error as Error).message }, { status: 400 });
+    return apiError("CHAT_CREATE_FAILED", resolveErrorMessage(error), 400);
   }
 }

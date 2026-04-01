@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { createDocumentForUser, listDocumentsForUser } from "@/lib/documents";
-import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
+import { apiError, apiSuccess, buildPaginationMeta, resolveErrorMessage } from "@/lib/http";
 import { documentCreateSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const user = await requireCurrentUser(request);
     const projectId = request.nextUrl.searchParams.get("projectId") || undefined;
     const documents = await listDocumentsForUser(user.id, projectId);
-    return apiSuccess({ documents });
+    return apiSuccess({ documents }, undefined, buildPaginationMeta({ page: 1, pageSize: documents.length || 1, total: documents.length }));
   } catch (error) {
     const message = resolveErrorMessage(error);
     return apiError(message, message === "UNAUTHORIZED" ? "Требуется авторизация" : message, message === "UNAUTHORIZED" ? 401 : 400);
@@ -27,7 +27,12 @@ export async function POST(request: NextRequest) {
       title: payload.title,
       prompt: payload.prompt,
       projectId: payload.projectId,
-      sourceFileId: payload.sourceFileId
+      sourceFileId: payload.sourceFileId,
+      sourceChatId: payload.sourceChatId,
+      template: payload.template,
+      tone: payload.tone,
+      structure: payload.structure,
+      length: payload.length
     });
 
     await writeAuditLog({
@@ -37,7 +42,8 @@ export async function POST(request: NextRequest) {
       entityId: document?.id,
       details: {
         title: payload.title,
-        projectId: payload.projectId || null
+        projectId: payload.projectId || null,
+        template: payload.template
       }
     });
 
