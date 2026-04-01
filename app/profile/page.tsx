@@ -94,14 +94,14 @@ export default function ProfilePage() {
   return (
     <main className="shell" style={{ padding: "18px 0 56px" }}>
       <section className="panel" style={{ padding: 28 }}>
-        <div className="badge">Кабинет</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Центр аккаунта</h1>
+        <div className="badge">Аккаунт</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Личный кабинет</h1>
         <div className="grid-4" style={{ marginTop: 24 }}>
           {[
             ["Баланс", String(profile?.tokenBalance ?? "...")],
-            ["Тариф", profile?.plan || "..."],
-            ["До", profile?.planExpiresAt ? new Date(profile.planExpiresAt).toLocaleDateString("ru-RU") : "без срока"],
-            ["Роль", profile?.role || "..."]
+            ["Подписка", profile?.plan || "..."],
+            ["Действует до", profile?.planExpiresAt ? new Date(profile.planExpiresAt).toLocaleDateString("ru-RU") : "без срока"],
+            ["Статус", profile?.role === "ADMIN" ? "Администратор" : "Активен"]
           ].map(([label, value]) => (
             <div key={label} className="card">
               <div className="muted">{label}</div>
@@ -112,21 +112,21 @@ export default function ProfilePage() {
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form className="card" onSubmit={save}>
-            <h2 style={{ marginTop: 0 }}>Настройки</h2>
-            <div className="muted" style={{ marginBottom: 12 }}>Обновление имени хранится на сервере.</div>
+            <h2 style={{ marginTop: 0 }}>Аккаунт</h2>
+            <div className="muted" style={{ marginBottom: 12 }}>Здесь можно обновить имя, которое видно в кабинете.</div>
             <input value={name} onChange={(event) => setName(event.target.value)} style={fieldStyle} />
             <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сохранить</button>
-              <button className="button-ghost" type="button" onClick={() => void logout()}>Выйти</button>
             </div>
             {message ? <div style={{ marginTop: 10 }}>{message}</div> : null}
           </form>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Использование</h2>
-            <div className="muted">Всего сообщений: {String(stats?.totalMessages ?? "...")}</div>
-            <div className="muted">Токенов израсходовано: {String(stats?.totalTokens ?? "...")}</div>
-            <div className="muted">Себестоимость RouterAI: {String(stats?.totalCostRub ?? "...")} ₽</div>
+            <h2 style={{ marginTop: 0 }}>Подписка</h2>
+            <div className="muted">Текущий тариф: {profile?.plan || "..."}</div>
+            <div className="muted">Баланс: {String(profile?.tokenBalance ?? "...")} токенов</div>
+            <div className="muted">Сообщений за всё время: {String(stats?.totalMessages ?? "...")}</div>
+            <div className="muted">Использовано токенов: {String(stats?.totalTokens ?? "...")}</div>
           </div>
 
           <div className="card">
@@ -143,7 +143,7 @@ export default function ProfilePage() {
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Реферальная программа</h2>
+            <h2 style={{ marginTop: 0 }}>Рефералы</h2>
             <div className="muted">Код: {String(referral?.referralCode ?? "...")}</div>
             <div className="muted">Ссылка: {referralLink || "..."}</div>
             <div className="muted">Рефералов: {String(referral?.referralsCount ?? 0)}</div>
@@ -153,6 +153,16 @@ export default function ProfilePage() {
             <div className="muted">Бонус новичку: {String(referral?.refereeBonusTokens ?? 0)} токенов</div>
             <button className="button-primary" style={{ marginTop: 14 }} type="button" onClick={() => void copyReferralLink()}>
               Скопировать ссылку
+            </button>
+          </div>
+
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Безопасность</h2>
+            <div className="muted">Почта: {profile?.email || "..."}</div>
+            <div className="muted">Сессия активна через защищённый вход.</div>
+            <div className="muted">Если работа завершена на чужом устройстве, выйди из аккаунта.</div>
+            <button className="button-ghost" style={{ marginTop: 14 }} type="button" onClick={() => void logout()}>
+              Выйти
             </button>
           </div>
 
@@ -168,18 +178,18 @@ export default function ProfilePage() {
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="card">
-            <h2 style={{ marginTop: 0 }}>Последние начисления</h2>
-            <div style={{ display: "grid", gap: 10 }}>
-              {recentRewards.length === 0 ? <div className="muted">Пока нет начислений</div> : null}
-              {recentRewards.map((entry) => (
-                <div key={String((entry as Record<string, unknown>).id)} className="muted">
-                  {String(((entry as Record<string, unknown>).referee as Record<string, unknown> | null)?.email || "...")} ·{" "}
-                  {String((entry as Record<string, unknown>).amountRub || 0)} ₽ · {String((entry as Record<string, unknown>).status || "...")}
-                </div>
-              ))}
-            </div>
+        <div className="card" style={{ marginTop: 24 }}>
+          <h2 style={{ marginTop: 0 }}>Последние начисления</h2>
+          <div style={{ display: "grid", gap: 10 }}>
+            {recentRewards.length === 0 ? <div className="muted">Пока нет начислений</div> : null}
+            {recentRewards.map((entry) => (
+              <div key={String((entry as Record<string, unknown>).id)} className="muted">
+                {String(((entry as Record<string, unknown>).referee as Record<string, unknown> | null)?.email || "...")} ·{" "}
+                {String((entry as Record<string, unknown>).amountRub || 0)} ₽ · {String((entry as Record<string, unknown>).status || "...")}
+              </div>
+            ))}
           </div>
         </div>
       </section>

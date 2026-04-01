@@ -6,6 +6,15 @@ type Job = { id: string; status: string; createdAt: string; errorMessage?: strin
 type Project = { id: string; title: string };
 type Capability = { videoAnalysis: string | null; generation: boolean; beta: boolean };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 export default function VideoToolPage() {
   const [mode, setMode] = useState<"storyboard" | "task">("storyboard");
   const [prompt, setPrompt] = useState("");
@@ -106,11 +115,10 @@ export default function VideoToolPage() {
     <main className="workspace-page">
       <section className="panel workspace-panel">
         <div className="badge">Видео</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Видео-сценарии</h1>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Видео</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Генерация видео включается только если живой каталог RouterAI подтверждает такую возможность. Иначе страница честно остаётся beta-сценарием для сторибордов, постановки задач и подготовки материалов к видео-анализу.
+          Подготовь идею ролика, собери структуру сцены и оформи задачу для дальнейшей работы с видео.
         </p>
-        <div className="muted" style={{ marginTop: 12 }}>Модель для видео-анализа: {capability.videoAnalysis || "недоступна"} · генерация: {capability.generation ? "включена" : "beta-режим"}</div>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
@@ -129,8 +137,8 @@ export default function VideoToolPage() {
             </div>
             {message ? <div className="muted">{message}</div> : null}
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="button-primary" type="submit">Создать задание</button>
-              <a className="button-secondary" href="/files">Артефакты</a>
+              <button className="button-primary" type="submit">Создать материал</button>
+              <a className="button-secondary" href="/files">Файлы</a>
             </div>
           </form>
 
@@ -139,11 +147,11 @@ export default function VideoToolPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · попытка {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{presentStatus(job.status)}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
                   {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>

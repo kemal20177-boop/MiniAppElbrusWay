@@ -7,6 +7,15 @@ type UserFileItem = { id: string; originalName: string; kind: string };
 type Project = { id: string; title: string };
 type Capability = { transcription: string | null; tts: string | null };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 export default function AudioToolPage() {
   const [mode, setMode] = useState<"transcription" | "tts">("transcription");
   const [text, setText] = useState("");
@@ -29,7 +38,7 @@ export default function AudioToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось обновить job");
+      setError(payload.error?.message || "Не удалось обновить запрос");
       return;
     }
     setMessage(action === "retry" ? "Задание поставлено в очередь повторно." : "Задание отменено.");
@@ -122,9 +131,9 @@ export default function AudioToolPage() {
     <main className="workspace-page">
       <section className="panel workspace-panel">
         <div className="badge">Аудио</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Работа с аудио</h1>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Голос и аудио</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Здесь доступны расшифровка загруженного аудио и озвучка текста, если живой каталог RouterAI подтверждает аудиовывод у выбранной модели.
+          Здесь можно расшифровать запись или подготовить озвучку текста, если этот режим доступен для выбранной модели.
         </p>
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
@@ -150,9 +159,8 @@ export default function AudioToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {message ? <div style={{ color: "var(--success)" }}>{message}</div> : null}
-            <div className="muted">Расшифровка: {capability.transcription || "недоступна"} · Озвучка: {capability.tts || "скрыта каталогом"}</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="button-primary" type="submit">Запустить задание</button>
+              <button className="button-primary" type="submit">Отправить запрос</button>
               <a className="button-secondary" href="/documents">Открыть документы</a>
             </div>
           </form>
@@ -162,11 +170,11 @@ export default function AudioToolPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · попытка {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{presentStatus(job.status)}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
                   {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>

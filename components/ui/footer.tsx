@@ -4,7 +4,7 @@ export function Footer() {
       <div
         className="panel"
         style={{
-          padding: 24,
+          padding: "22px 24px",
           display: "flex",
           justifyContent: "space-between",
           gap: 24,
@@ -13,9 +13,13 @@ export function Footer() {
       >
         <div>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>ElbrusWay AI</div>
-          <div className="muted">Платформа доступа к RouterAI и ведущим моделям для РФ и СНГ.</div>
+          <div className="muted">Чат, документы, изображения, поиск и файлы в одном аккуратном сервисе.</div>
         </div>
-        <div className="muted">elbrusway.ru · ИНН / ОГРН / оферта добавляются перед релизом</div>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <a className="muted" href="/rates">Тарифы</a>
+          <a className="muted" href="/profile">Аккаунт</a>
+          <a className="muted" href="/chat">Чат</a>
+        </div>
       </div>
     </footer>
   );

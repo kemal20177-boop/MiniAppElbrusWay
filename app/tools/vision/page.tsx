@@ -19,6 +19,15 @@ type VisionJob = {
 };
 type Capability = { available: boolean; modelId: string | null };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 const modes = [
   { id: "ocr", label: "OCR" },
   { id: "describe", label: "Описание" },
@@ -143,9 +152,8 @@ export default function VisionPage() {
         <div className="badge">Зрение</div>
         <h1 className="section-title" style={{ marginTop: 16 }}>Анализ изображений</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Страница помогает извлекать текст, описывать изображения, разбирать скриншоты и графики, а также задавать вопросы по картинке через RouterAI.
+          Загрузи изображение, получи текст с картинки, краткое описание, разбор скриншота, графика или ответ на конкретный вопрос.
         </p>
-        <div className="muted" style={{ marginTop: 12 }}>Модель RouterAI: {capability.modelId || "недоступна"}</div>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
 
         <div className="grid-3" style={{ marginTop: 24 }}>
@@ -191,11 +199,11 @@ export default function VisionPage() {
           <div style={{ display: "grid", gap: 10 }}>
             {jobs.map((job) => (
               <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  <span className="badge">{presentStatus(job.status)}</span>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
                   {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>

@@ -7,6 +7,15 @@ type Job = { id: string; status: string; createdAt: string; errorMessage?: strin
 type FileRecord = { id: string; originalName: string; previewUrl: string | null };
 type Capability = { available: boolean; modelId: string | null };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 export default function ImageToolPage() {
   const [mode, setMode] = useState<"text-to-image" | "image-to-image">("text-to-image");
   const [prompt, setPrompt] = useState("");
@@ -137,7 +146,7 @@ export default function ImageToolPage() {
         <div className="badge">Изображения</div>
         <h1 className="section-title" style={{ marginTop: 16 }}>Генерация изображений</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Создание изображений через RouterAI: генерация по описанию, редактирование по исходной картинке и сохранение результата в файлы проекта.
+          Создавай иллюстрации по описанию, меняй готовые картинки и сохраняй результат в файлы проекта.
         </p>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
@@ -175,7 +184,6 @@ export default function ImageToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {statusMessage ? <div className="muted">{statusMessage}</div> : null}
-            <div className="muted">Модель RouterAI: {capability.modelId || "недоступна"}</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сгенерировать</button>
               <a className="button-secondary" href="/files">Открыть файлы</a>
@@ -200,11 +208,11 @@ export default function ImageToolPage() {
           <div style={{ display: "grid", gap: 10 }}>
             {jobs.map((job) => (
               <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · попытка {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{presentStatus(job.status)}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
                   {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>
