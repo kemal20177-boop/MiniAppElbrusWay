@@ -1,9 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit";
-import { createArtifactFileForUser } from "@/lib/files";
 import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
-import { createToolJob, completeToolJob, failToolJob, listToolJobsForUser, startToolJob } from "@/lib/tool-jobs";
+import { createToolJob, listToolJobsForUser, queueToolJob } from "@/lib/tool-jobs";
 import { toolVideoSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
@@ -34,42 +32,8 @@ export async function POST(request: NextRequest) {
       input: payload
     });
 
-    await startToolJob(job.id);
-
-    try {
-      const content =
-        payload.mode === "storyboard"
-          ? `Storyboard prompt\n\nPrompt: ${payload.prompt}\nDuration: ${payload.durationSec}s\n\n1. Opening frame\n2. Product context\n3. Key action\n4. Closing CTA`
-          : `Video task created\n\nPrompt: ${payload.prompt}\nDuration: ${payload.durationSec}s\nStatus: queued`;
-      const artifact = await createArtifactFileForUser({
-        userId: user.id,
-        projectId: payload.projectId,
-        fileName: `video-${payload.mode}-${job.id}.md`,
-        mimeType: "text/markdown",
-        content
-      });
-      const completed = await completeToolJob({
-        jobId: job.id,
-        output: {
-          fileId: artifact.id,
-          mode: payload.mode,
-          status: "queued"
-        }
-      });
-
-      await writeAuditLog({
-        action: "video.create",
-        actorId: user.id,
-        entityType: "apiJob",
-        entityId: completed.id,
-        details: payload
-      });
-
-      return apiSuccess({ job: completed, file: artifact }, { status: 201 });
-    } catch (error) {
-      await failToolJob(job.id, resolveErrorMessage(error));
-      throw error;
-    }
+    queueToolJob(job.id);
+    return apiSuccess({ job }, { status: 202 });
   } catch (error) {
     return apiError("VIDEO_RUN_FAILED", resolveErrorMessage(error), 400);
   }

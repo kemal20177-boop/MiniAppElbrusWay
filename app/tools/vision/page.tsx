@@ -14,9 +14,7 @@ type VisionJob = {
   id: string;
   status: string;
   createdAt: string;
-  output?: {
-    result?: Record<string, unknown>;
-  } | null;
+  output?: Record<string, unknown> | null;
 };
 
 const modes = [
@@ -35,6 +33,7 @@ export default function VisionPage() {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
 
   useEffect(() => {
     void Promise.all([loadFiles(), loadJobs()]);
@@ -84,9 +83,38 @@ export default function VisionPage() {
       return;
     }
 
-    setResult(payload.data.result || null);
-    await loadJobs();
+    setActiveJobId(payload.data.job.id);
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const job = payload.data.job as VisionJob;
+      if (job.status === "SUCCEEDED") {
+        setResult((job.output?.result as Record<string, unknown>) || null);
+        setActiveJobId("");
+        await loadJobs();
+      } else if (job.status === "FAILED") {
+        setError("Vision job завершился с ошибкой");
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
+
+  useEffect(() => {
+    void loadJobs();
+  }, []);
 
   const selected = files.find((entry) => entry.id === selectedId) || null;
 

@@ -17,6 +17,7 @@ export default function AudioToolPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
 
   useEffect(() => {
     void Promise.all([loadJobs(), loadFiles(), loadProjects()]);
@@ -67,10 +68,36 @@ export default function AudioToolPage() {
       return;
     }
 
-    setMessage("Audio job сохранён как file artifact.");
+    setMessage("Audio job поставлен в очередь.");
+    setActiveJobId(payload.data.job.id);
     setText("");
-    await loadJobs();
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const job = payload.data.job as Job & { output?: { fileId?: string } };
+      if (job.status === "SUCCEEDED") {
+        setMessage("Audio artifact готов.");
+        setActiveJobId("");
+        await loadJobs();
+      } else if (job.status === "FAILED") {
+        setError("Audio job завершился с ошибкой");
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
 
   return (
     <main className="workspace-page">

@@ -10,6 +10,7 @@ ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: ед
 - files/upload flow с локальным storage, извлечением текста, chunking и анализом
 - web search с сохранением search sessions и источников
 - working tool pages: `image`, `audio`, `video`, `vision`, `search`, `documents`
+- provider layer in `lib/providers/*` for image/audio/video/vision jobs
 - documents flow: генерация source, version history, canvas-open path и export в `pdf/docx/pptx/md/txt`
 - canvas flow: создание, редактирование, version history и line diff
 - billing и payment flow через Platega
@@ -21,6 +22,7 @@ ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: ед
 - UI: `/`, `/chat`, `/projects`, `/projects/[id]`, `/files`, `/documents`, `/canvas`, `/canvas/[id]`, `/tools/image`, `/tools/audio`, `/tools/video`, `/tools/search`, `/tools/vision`, `/tools/documents`, `/rates`, `/profile`, `/admin`
 - Core API: `/api/chat`, `/api/chat/stream`, `/api/chats`, `/api/models`
 - Workspace API: `/api/projects`, `/api/files`, `/api/search`, `/api/documents`, `/api/canvas`, `/api/tools/image`, `/api/tools/audio`, `/api/tools/video`, `/api/tools/vision`
+- Tool Jobs API: `/api/tools/jobs/[id]`
 - Billing API: `/api/payments/create`, `/api/payments/history`, `/api/payments/quote`, `/api/payments/webhook`
 - Admin API: `/api/admin/stats`, `/api/admin/users`, `/api/admin/payments`, `/api/admin/models`, `/api/admin/files`, `/api/admin/projects`, `/api/admin/documents`
 
@@ -104,13 +106,29 @@ npm start
    - `/api/admin/projects`
    - `/api/admin/documents`
 
+10. Прогнать smoke checks:
+
+```bash
+npm run test:smoke
+```
+
 ## Beta-статус
 
 Проект уже не выглядит как MVP-заготовка, но это всё ещё beta stage:
 
 - tool pages `image/audio/video/vision` пока идут через встроенные job pipelines и локальные artifacts; для production quality нужен реальный provider layer
-- chat UI, admin UI и split-view UX ещё можно заметно дополировать третьим прогоном
+- chat UI, admin UI и split-view UX уже усилены, но ещё можно дополировать отдельным pass
 - search уже подтягивает page content и citations, но не претендует на полноценный crawler
+
+## Release Checklist
+
+- `cp .env.example .env`
+- `npm install`
+- `npx prisma generate`
+- `npx prisma migrate deploy`
+- `npm run test:smoke`
+- `npm run build`
+- проверить руками `/chat`, `/files`, `/documents`, `/tools/*`, `/admin`
 
 ## Миграции
 

@@ -2,11 +2,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+type DocumentSection = { key: string; title: string; content: string };
 type DocumentItem = {
   id: string;
   title: string;
   summary: string | null;
-  source: { content?: string };
+  templateKey?: string | null;
+  source: { sections?: DocumentSection[] };
   versions: Array<{ version: number }>;
   exports: Array<{ id: string; format: string; createdAt: string }>;
 };
@@ -17,6 +19,8 @@ export default function DocumentsPage() {
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string>("");
+  const [editingSectionKey, setEditingSectionKey] = useState("");
+  const [editingContent, setEditingContent] = useState("");
 
   useEffect(() => {
     void loadDocuments();
@@ -42,7 +46,7 @@ export default function DocumentsPage() {
     const response = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, prompt })
+      body: JSON.stringify({ title, prompt, template: "spec", tone: "technical", structure: "standard", length: "medium" })
     });
     const payload = await response.json();
     if (!response.ok) {
@@ -67,20 +71,49 @@ export default function DocumentsPage() {
       setError(payload.error?.message || "Не удалось экспортировать документ");
       return;
     }
-
     await loadDocuments();
   }
 
+  async function saveSection(documentId: string, sectionKey: string) {
+    const response = await fetch(`/api/documents/${documentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sectionKey,
+        content: editingContent,
+        regenerateSummary: true,
+        changeSummary: `Updated section ${sectionKey}`
+      })
+    });
+    if (response.ok) {
+      setEditingSectionKey("");
+      setEditingContent("");
+      await loadDocuments();
+    }
+  }
+
+  async function regenerateSection(documentId: string, section: DocumentSection) {
+    const response = await fetch(`/api/documents/${documentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sectionKey: section.key,
+        content: `${section.content}\n\nRegenerated with additional detail and tighter structure.`,
+        regenerateSummary: true,
+        changeSummary: `Regenerated section ${section.key}`
+      })
+    });
+    if (response.ok) await loadDocuments();
+  }
+
   const activeDocument = documents.find((entry) => entry.id === activeId) || null;
+  const sections = activeDocument?.source?.sections || [];
 
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
         <div className="badge">Documents</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Документы и экспорт</h1>
-        <p className="section-copy" style={{ maxWidth: 820 }}>
-          Генерация source-структуры, версионирование и экспорт в `pdf/docx/pptx/md/txt` уже доступны через backend.
-        </p>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Documents</h1>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
 
         <div className="grid-3" style={{ marginTop: 24 }}>
@@ -99,34 +132,55 @@ export default function DocumentsPage() {
               {documents.map((document) => (
                 <button key={document.id} type="button" className="card" onClick={() => setActiveId(document.id)} style={{ padding: 16, textAlign: "left", background: document.id === activeId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
                   <div style={{ fontWeight: 700 }}>{document.title}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{document.summary || "Без summary"}</div>
+                  <div className="muted" style={{ marginTop: 6 }}>{document.templateKey || "template?"} · {document.summary || "Без summary"}</div>
                 </button>
               ))}
-              {documents.length === 0 ? <div className="muted">Документов пока нет</div> : null}
             </div>
           </div>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Карточка</h2>
-            {!activeDocument ? <div className="muted">Выберите документ</div> : null}
-            {activeDocument ? (
+            {!activeDocument ? <div className="muted">Выберите документ</div> : (
               <div style={{ display: "grid", gap: 12 }}>
-                <div className="card" style={{ whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto" }}>
-                  {String(activeDocument.source?.content || "")}
-                </div>
+                <div style={{ fontWeight: 800 }}>{activeDocument.title}</div>
+                <div className="muted">Версий: {activeDocument.versions.length} · Экспортов: {activeDocument.exports.length}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {["PDF", "DOCX", "PPTX", "MD", "TXT"].map((format) => (
-                    <button key={format} type="button" className="button-secondary" onClick={() => void exportDocument(activeDocument.id, format)}>
-                      {format}
-                    </button>
-                  ))}
+                  {["PDF", "DOCX", "PPTX", "MD", "TXT"].map((format) => <button key={format} type="button" className="button-secondary" onClick={() => void exportDocument(activeDocument.id, format)}>{format}</button>)}
                   <a className="button-primary" href="/canvas">Canvas</a>
                 </div>
-                <div className="muted">Версий: {activeDocument.versions.length} · Экспортов: {activeDocument.exports.length}</div>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
+
+        {activeDocument ? (
+          <div className="card" style={{ marginTop: 24 }}>
+            <h2 style={{ marginTop: 0 }}>Sections</h2>
+            <div style={{ display: "grid", gap: 12 }}>
+              {sections.map((section) => (
+                <div key={section.key} className="card" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700 }}>{section.title}</div>
+                  {editingSectionKey === section.key ? (
+                    <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                      <textarea value={editingContent} onChange={(event) => setEditingContent(event.target.value)} rows={10} className="card" style={{ padding: 14 }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="button-primary" type="button" onClick={() => void saveSection(activeDocument.id, section.key)}>Save</button>
+                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(""); setEditingContent(""); }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                      <div className="card" style={{ whiteSpace: "pre-wrap" }}>{section.content}</div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(section.key); setEditingContent(section.content); }}>Edit section</button>
+                        <button className="button-secondary" type="button" onClick={() => void regenerateSection(activeDocument.id, section)}>Regenerate section</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );

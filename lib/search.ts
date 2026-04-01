@@ -98,6 +98,22 @@ function computeScore(query: string, source: Pick<SearchSourceDraft, "title" | "
   return score;
 }
 
+function dedupeSources(sources: SearchSourceDraft[]) {
+  const seen = new Set<string>();
+  const unique: SearchSourceDraft[] = [];
+
+  for (const source of sources) {
+    const key = `${source.url}|${source.title.toLowerCase()}|${source.domain || ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(source);
+  }
+
+  return unique;
+}
+
 async function fetchDuckDuckGoResults(query: string, depth: SearchDepth, latestOnly?: boolean) {
   const limit = getResultLimit(depth);
   const response = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(buildSearchQuery(query, latestOnly))}&kl=ru-ru`, {
@@ -228,7 +244,7 @@ async function buildSearchSources(query: string, depth: SearchDepth, latestOnly?
     })
   }));
 
-  return [...enriched, ...untouched].sort((left, right) => right.score - left.score);
+  return dedupeSources([...enriched, ...untouched]).sort((left, right) => right.score - left.score);
 }
 
 export async function runWebSearch(params: SearchRunParams) {

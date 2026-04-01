@@ -66,6 +66,9 @@ export default function AdminPage() {
   const [referralRewards, setReferralRewards] = useState<ReferralReward[]>([]);
   const [topReferrers, setTopReferrers] = useState<Array<Record<string, unknown>>>([]);
   const [models, setModels] = useState<Array<Record<string, unknown>>>([]);
+  const [adminFiles, setAdminFiles] = useState<Array<Record<string, unknown>>>([]);
+  const [adminProjects, setAdminProjects] = useState<Array<Record<string, unknown>>>([]);
+  const [adminDocuments, setAdminDocuments] = useState<Array<Record<string, unknown>>>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -109,7 +112,10 @@ export default function AdminPage() {
       fetch("/api/admin/plans"),
       fetch("/api/admin/promocodes"),
       fetch("/api/admin/referrals"),
-      fetch("/api/admin/models")
+      fetch("/api/admin/models"),
+      fetch("/api/admin/files"),
+      fetch("/api/admin/projects"),
+      fetch("/api/admin/documents")
     ]);
 
     const payloads = await Promise.all(responses.map((response) => response.json()));
@@ -129,6 +135,9 @@ export default function AdminPage() {
     setReferralRewards(payloads[6].rewards || []);
     setTopReferrers(payloads[6].topReferrers || []);
     setModels(payloads[7].models || []);
+    setAdminFiles(payloads[8].data?.files || []);
+    setAdminProjects(payloads[9].data?.projects || []);
+    setAdminDocuments(payloads[10].data?.documents || []);
   }
 
   async function updateUser(userId: string, payload: Record<string, unknown>) {
@@ -368,6 +377,13 @@ export default function AdminPage() {
             ["Реф. выплаты", `${String(stats?.referralRewardsRub ?? "...")} ₽`],
             ["Реф. сделок", String(stats?.referralRewardsCount ?? "...")],
             ["Расход RouterAI", `${String(stats?.realCostRub ?? "...")} ₽`],
+            ["Файлы", String(stats?.filesCount ?? "...")],
+            ["Документы", String(stats?.documentsCount ?? "...")],
+            ["Проекты", String(stats?.projectsCount ?? "...")],
+            ["Search runs", String(stats?.searchRuns ?? "...")],
+            ["Exports", String(stats?.exportsCount ?? "...")],
+            ["Failed jobs", String(stats?.failedJobsCount ?? "...")],
+            ["Storage", `${String(stats?.storageBytes ?? "...")} bytes`],
             [
               "Баланс RouterAI",
               stats?.routerCredits == null ? String(stats?.routerCreditsError ?? "...") : `${String(stats?.routerCredits)} ₽`
@@ -522,6 +538,33 @@ export default function AdminPage() {
           <div style={{ display: "grid", gap: 14 }}>
             {models.slice(0, 20).map((model) => (
               <ModelEditor key={String(model.id)} model={model} onSave={saveModel} />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid-3" style={{ marginTop: 24 }}>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Files</div>
+            {adminFiles.slice(0, 12).map((file) => (
+              <div key={String(file.id)} className="muted">
+                {String(file.originalName)} · {String(file.kind)} · {String(file.status)}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Projects</div>
+            {adminProjects.slice(0, 12).map((project) => (
+              <div key={String(project.id)} className="muted">
+                {String(project.title)} · chats {String((project._count as Record<string, unknown> | undefined)?.chats || 0)} · files {String((project._count as Record<string, unknown> | undefined)?.files || 0)}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Documents</div>
+            {adminDocuments.slice(0, 12).map((document) => (
+              <div key={String(document.id)} className="muted">
+                {String(document.title)} · {String(document.status)} · exports {String((document.exports as unknown[] | undefined)?.length || 0)}
+              </div>
             ))}
           </div>
         </div>

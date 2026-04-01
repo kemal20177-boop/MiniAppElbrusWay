@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 type Project = { id: string; title: string };
-type Job = { id: string; status: string; createdAt: string; output?: { fileId?: string } | null };
+type Job = { id: string; status: string; createdAt: string; output?: { fileId?: string; previewUrl?: string } | null };
 type FileRecord = { id: string; originalName: string; previewUrl: string | null };
 
 export default function ImageToolPage() {
@@ -17,6 +17,7 @@ export default function ImageToolPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [resultFile, setResultFile] = useState<FileRecord | null>(null);
   const [error, setError] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
 
   useEffect(() => {
     void Promise.all([loadProjects(), loadFiles(), loadJobs()]);
@@ -67,10 +68,44 @@ export default function ImageToolPage() {
       return;
     }
 
-    setResultFile(payload.data.file || null);
+    setActiveJobId(payload.data.job.id);
     setPrompt("");
-    await Promise.all([loadJobs(), loadFiles()]);
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+
+      const job = payload.data.job as Job;
+      if (job.status === "SUCCEEDED" && job.output?.fileId) {
+        const fileResponse = await fetch(`/api/files/${job.output.fileId}`);
+        const filePayload = await fileResponse.json();
+        if (fileResponse.ok) {
+          setResultFile(filePayload.data.file);
+        }
+        setActiveJobId("");
+        await Promise.all([loadJobs(), loadFiles()]);
+      } else if (job.status === "FAILED") {
+        setError("Image job failed");
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
+
+  useEffect(() => {
+    void loadJobs();
+  }, []);
 
   return (
     <main className="workspace-page">

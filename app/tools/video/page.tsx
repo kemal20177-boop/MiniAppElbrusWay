@@ -13,6 +13,7 @@ export default function VideoToolPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [message, setMessage] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
 
   useEffect(() => {
     void Promise.all([loadJobs(), loadProjects()]);
@@ -48,13 +49,39 @@ export default function VideoToolPage() {
     });
     const payload = await response.json();
     if (response.ok) {
-      setMessage(`Video ${mode} job создан: ${payload.data.job.id}`);
+      setMessage(`Video ${mode} job поставлен в очередь: ${payload.data.job.id}`);
+      setActiveJobId(payload.data.job.id);
       setPrompt("");
-      await loadJobs();
     } else {
       setMessage(payload.error?.message || "Не удалось создать video job");
     }
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const job = payload.data.job as Job;
+      if (job.status === "SUCCEEDED") {
+        setMessage(`Video job ${activeJobId} завершён.`);
+        setActiveJobId("");
+        await loadJobs();
+      } else if (job.status === "FAILED") {
+        setMessage(`Video job ${activeJobId} завершился с ошибкой.`);
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
 
   return (
     <main className="workspace-page">
