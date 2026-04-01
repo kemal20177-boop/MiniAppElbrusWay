@@ -16,7 +16,13 @@ const checks = [
   "app/chat/page.tsx",
   "app/files/page.tsx",
   "app/documents/page.tsx",
-  "app/admin/page.tsx"
+  "app/admin/page.tsx",
+  "app/api/admin/jobs/route.ts",
+  "app/api/admin/search-sessions/route.ts",
+  "app/api/admin/audit/route.ts",
+  "lib/providers/shared.ts",
+  "tests/search-utils.test.ts",
+  "tests/tool-job-utils.test.ts"
 ];
 
 let failed = false;
@@ -27,6 +33,28 @@ for (const rel of checks) {
     failed = true;
   } else {
     console.log(`OK ${rel}`);
+  }
+}
+
+if (failed) {
+  process.exit(1);
+}
+
+const contentChecks = [
+  ["README.md", "provider layer in `lib/providers/*`"],
+  ["app/tools/image/page.tsx", "History"],
+  ["app/chat/page.tsx", "Open full canvas"],
+  ["app/admin/page.tsx", "Tool Jobs"]
+];
+
+for (const [rel, needle] of contentChecks) {
+  const absolute = path.join(root, rel);
+  const text = fs.readFileSync(absolute, "utf8");
+  if (!text.includes(needle)) {
+    console.error(`MISSING_CONTENT ${rel} -> ${needle}`);
+    failed = true;
+  } else {
+    console.log(`OK_CONTENT ${rel}`);
   }
 }
 

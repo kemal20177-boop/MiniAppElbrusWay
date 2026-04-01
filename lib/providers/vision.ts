@@ -1,5 +1,6 @@
 import "server-only";
 import { runTextProvider } from "@/lib/providers/router-text";
+import { callExternalProvider, isProviderConfigured } from "@/lib/providers/shared";
 
 export async function runVisionProvider(params: {
   mode: "ocr" | "describe" | "screenshot-analysis" | "chart-analysis" | "ask";
@@ -7,6 +8,39 @@ export async function runVisionProvider(params: {
   extractedText?: string | null;
   question?: string;
 }) {
+  if (isProviderConfigured("VISION_PROVIDER_BASE_URL", "VISION_PROVIDER_API_KEY")) {
+    const payload = await callExternalProvider({
+      apiKeyEnv: "VISION_PROVIDER_API_KEY",
+      baseUrlEnv: "VISION_PROVIDER_BASE_URL",
+      path: "/analyze",
+      payload: {
+        mode: params.mode,
+        fileName: params.fileName,
+        extractedText: params.extractedText || null,
+        question: params.question || null,
+        model: process.env.VISION_PROVIDER_MODEL || null
+      }
+    });
+
+    const structured = (payload.metadata?.structured || {}) as Record<string, unknown>;
+    const text =
+      typeof payload.text === "string"
+        ? payload.text
+        : typeof structured.summary === "string"
+          ? structured.summary
+          : "";
+
+    return {
+      text,
+      structured: Object.keys(structured).length
+        ? structured
+        : {
+            summary: text || "Vision result available.",
+            answer: text || "Vision result available."
+          }
+    };
+  }
+
   const response = await runTextProvider({
     system: "Ты vision analysis assistant. Отвечай структурированно, коротко и полезно для workspace.",
     prompt: [

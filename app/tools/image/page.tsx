@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 type Project = { id: string; title: string };
-type Job = { id: string; status: string; createdAt: string; output?: { fileId?: string; previewUrl?: string } | null };
+type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { fileId?: string; previewUrl?: string; attempts?: number } | null };
 type FileRecord = { id: string; originalName: string; previewUrl: string | null };
 
 export default function ImageToolPage() {
@@ -17,6 +17,7 @@ export default function ImageToolPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [resultFile, setResultFile] = useState<FileRecord | null>(null);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
 
   useEffect(() => {
@@ -69,7 +70,24 @@ export default function ImageToolPage() {
     }
 
     setActiveJobId(payload.data.job.id);
+    setStatusMessage("Job queued");
     setPrompt("");
+  }
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error?.message || "Не удалось обновить job");
+      return;
+    }
+    setStatusMessage(action === "retry" ? "Job re-queued" : "Job cancelled");
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
   }
 
   useEffect(() => {
@@ -85,6 +103,7 @@ export default function ImageToolPage() {
       }
 
       const job = payload.data.job as Job;
+      setStatusMessage(`Status: ${job.status}`);
       if (job.status === "SUCCEEDED" && job.output?.fileId) {
         const fileResponse = await fetch(`/api/files/${job.output.fileId}`);
         const filePayload = await fileResponse.json();
@@ -93,8 +112,8 @@ export default function ImageToolPage() {
         }
         setActiveJobId("");
         await Promise.all([loadJobs(), loadFiles()]);
-      } else if (job.status === "FAILED") {
-        setError("Image job failed");
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Image job failed");
         setActiveJobId("");
         await loadJobs();
       }
@@ -140,6 +159,7 @@ export default function ImageToolPage() {
               </select>
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
+            {statusMessage ? <div className="muted">{statusMessage}</div> : null}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сгенерировать</button>
               <a className="button-secondary" href="/files">Открыть files</a>
@@ -165,7 +185,12 @@ export default function ImageToolPage() {
             {jobs.map((job) => (
               <div key={job.id} className="card" style={{ padding: 16 }}>
                 <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                </div>
               </div>
             ))}
             {jobs.length === 0 ? <div className="muted">Пока нет image jobs.</div> : null}

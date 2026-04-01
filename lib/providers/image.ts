@@ -1,5 +1,6 @@
 import "server-only";
 import { runTextProvider } from "@/lib/providers/router-text";
+import { callExternalProvider, isProviderConfigured, resolveArtifactContent } from "@/lib/providers/shared";
 
 function renderSvg(params: { prompt: string; concept: string; aspectRatio: string }) {
   const [w, h] = params.aspectRatio === "16:9" ? [1280, 720] : params.aspectRatio === "9:16" ? [720, 1280] : params.aspectRatio === "4:3" ? [1200, 900] : [1024, 1024];
@@ -29,6 +30,31 @@ export async function generateImageArtifact(params: {
   aspectRatio: string;
   sourceHint?: string;
 }) {
+  if (isProviderConfigured("IMAGE_PROVIDER_BASE_URL", "IMAGE_PROVIDER_API_KEY")) {
+    const payload = await callExternalProvider({
+      apiKeyEnv: "IMAGE_PROVIDER_API_KEY",
+      baseUrlEnv: "IMAGE_PROVIDER_BASE_URL",
+      path: "/generate",
+      payload: {
+        mode: params.mode,
+        prompt: params.prompt,
+        aspectRatio: params.aspectRatio,
+        sourceHint: params.sourceHint || null,
+        model: process.env.IMAGE_PROVIDER_MODEL || null
+      }
+    });
+
+    return {
+      mimeType: payload.mimeType || "image/png",
+      content: await resolveArtifactContent(payload),
+      metadata: {
+        provider: "external-image",
+        providerMode: "remote",
+        ...payload.metadata
+      }
+    };
+  }
+
   const concept = await runTextProvider({
     system: "Ты visual concept generator. Верни короткое описание композиции, палитры и визуальной подачи.",
     prompt: [
@@ -48,6 +74,7 @@ export async function generateImageArtifact(params: {
     }),
     metadata: {
       provider: "router-text",
+      providerMode: "dev-fallback",
       concept: concept.text
     }
   };

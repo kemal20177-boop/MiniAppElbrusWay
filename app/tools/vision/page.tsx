@@ -14,6 +14,7 @@ type VisionJob = {
   id: string;
   status: string;
   createdAt: string;
+  errorMessage?: string | null;
   output?: Record<string, unknown> | null;
 };
 
@@ -34,6 +35,21 @@ export default function VisionPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error?.message || "Не удалось обновить vision job");
+      return;
+    }
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
+  }
 
   useEffect(() => {
     void Promise.all([loadFiles(), loadJobs()]);
@@ -102,8 +118,8 @@ export default function VisionPage() {
         setResult((job.output?.result as Record<string, unknown>) || null);
         setActiveJobId("");
         await loadJobs();
-      } else if (job.status === "FAILED") {
-        setError("Vision job завершился с ошибкой");
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Vision job завершился с ошибкой");
         setActiveJobId("");
         await loadJobs();
       }
@@ -173,6 +189,11 @@ export default function VisionPage() {
               <div key={job.id} className="card" style={{ padding: 16 }}>
                 <div style={{ fontWeight: 700 }}>{job.id}</div>
                 <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                </div>
               </div>
             ))}
             {jobs.length === 0 ? <div className="muted">Vision history пока пустая.</div> : null}

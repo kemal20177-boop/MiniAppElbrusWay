@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-type Job = { id: string; status: string; createdAt: string };
+type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { attempts?: number } | null };
 type UserFileItem = { id: string; originalName: string; kind: string };
 type Project = { id: string; title: string };
 
@@ -18,6 +18,22 @@ export default function AudioToolPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error?.message || "Не удалось обновить job");
+      return;
+    }
+    setMessage(action === "retry" ? "Audio job поставлен в очередь повторно." : "Audio job отменён.");
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
+  }
 
   useEffect(() => {
     void Promise.all([loadJobs(), loadFiles(), loadProjects()]);
@@ -89,8 +105,8 @@ export default function AudioToolPage() {
         setMessage("Audio artifact готов.");
         setActiveJobId("");
         await loadJobs();
-      } else if (job.status === "FAILED") {
-        setError("Audio job завершился с ошибкой");
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Audio job завершился с ошибкой");
         setActiveJobId("");
         await loadJobs();
       }
@@ -142,10 +158,15 @@ export default function AudioToolPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 700 }}>{job.id}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>{job.id}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
                 </div>
-              ))}
+              </div>
+            ))}
               {jobs.length === 0 ? <div className="muted">Audio jobs пока не запускались.</div> : null}
             </div>
           </div>

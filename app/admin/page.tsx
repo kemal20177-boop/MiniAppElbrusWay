@@ -69,6 +69,10 @@ export default function AdminPage() {
   const [adminFiles, setAdminFiles] = useState<Array<Record<string, unknown>>>([]);
   const [adminProjects, setAdminProjects] = useState<Array<Record<string, unknown>>>([]);
   const [adminDocuments, setAdminDocuments] = useState<Array<Record<string, unknown>>>([]);
+  const [searchSessions, setSearchSessions] = useState<Array<Record<string, unknown>>>([]);
+  const [toolJobs, setToolJobs] = useState<Array<Record<string, unknown>>>([]);
+  const [auditLogs, setAuditLogs] = useState<Array<Record<string, unknown>>>([]);
+  const [storageInfo, setStorageInfo] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -115,7 +119,11 @@ export default function AdminPage() {
       fetch("/api/admin/models"),
       fetch("/api/admin/files"),
       fetch("/api/admin/projects"),
-      fetch("/api/admin/documents")
+      fetch("/api/admin/documents"),
+      fetch("/api/admin/search-sessions"),
+      fetch("/api/admin/jobs"),
+      fetch("/api/admin/audit"),
+      fetch("/api/admin/storage")
     ]);
 
     const payloads = await Promise.all(responses.map((response) => response.json()));
@@ -138,6 +146,10 @@ export default function AdminPage() {
     setAdminFiles(payloads[8].data?.files || []);
     setAdminProjects(payloads[9].data?.projects || []);
     setAdminDocuments(payloads[10].data?.documents || []);
+    setSearchSessions(payloads[11].data?.sessions || []);
+    setToolJobs(payloads[12].data?.jobs || []);
+    setAuditLogs(payloads[13].data?.logs || []);
+    setStorageInfo(payloads[14].data || null);
   }
 
   async function updateUser(userId: string, payload: Record<string, unknown>) {
@@ -564,6 +576,76 @@ export default function AdminPage() {
             {adminDocuments.slice(0, 12).map((document) => (
               <div key={String(document.id)} className="muted">
                 {String(document.title)} · {String(document.status)} · exports {String((document.exports as unknown[] | undefined)?.length || 0)}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid-3" style={{ marginTop: 24 }}>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Search Sessions</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {searchSessions.slice(0, 12).map((session) => (
+                <div key={String(session.id)} className="card" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700 }}>{String(session.query)}</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {String((session.user as Record<string, unknown> | null)?.email || "—")} · {formatDateTime(session.createdAt)}
+                  </div>
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    sources {(session.sources as unknown[] | undefined)?.length || 0} · project {String((session.project as Record<string, unknown> | null)?.title || "—")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Tool Jobs</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {toolJobs.slice(0, 12).map((job) => (
+                <div key={String(job.id)} className="card" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700 }}>{String(job.jobType)}</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {String(job.status)} · {String((job.user as Record<string, unknown> | null)?.email || "—")}
+                  </div>
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    {String(job.errorMessage || "Без ошибок")} · {formatDateTime(job.createdAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Storage / Usage</div>
+            <div className="muted" style={{ marginBottom: 12 }}>
+              Total storage: {String(storageInfo?.totalStorageBytes ?? stats?.storageBytes ?? "...")} bytes
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {((storageInfo?.filesByKind as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
+                <div key={String(entry.kind)} className="muted">
+                  {String(entry.kind)} · {String(entry.count)} files · {String(entry.sizeBytes)} bytes
+                </div>
+              ))}
+              {((storageInfo?.jobsByStatus as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
+                <div key={String(entry.status)} className="muted">
+                  jobs {String(entry.status)} · {String(entry.count)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginTop: 24 }}>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Audit / Error States</div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {auditLogs.slice(0, 16).map((log) => (
+              <div key={String(log.id)} className="card" style={{ padding: 14 }}>
+                <div style={{ fontWeight: 700 }}>{String(log.action)}</div>
+                <div className="muted" style={{ marginTop: 4 }}>
+                  actor {String((log.actorUser as Record<string, unknown> | null)?.email || "system")} · entity {String(log.entityType || "—")}:{String(log.entityId || "—")}
+                </div>
+                <div className="muted" style={{ marginTop: 6 }}>{formatDateTime(log.createdAt)}</div>
               </div>
             ))}
           </div>

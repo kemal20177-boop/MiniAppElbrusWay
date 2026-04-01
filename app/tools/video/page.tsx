@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-type Job = { id: string; status: string; createdAt: string };
+type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { attempts?: number } | null };
 type Project = { id: string; title: string };
 
 export default function VideoToolPage() {
@@ -14,6 +14,22 @@ export default function VideoToolPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [message, setMessage] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setMessage(payload.error?.message || "Не удалось обновить video job");
+      return;
+    }
+    setMessage(action === "retry" ? `Video job ${jobId} поставлен в очередь повторно.` : `Video job ${jobId} отменён.`);
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
+  }
 
   useEffect(() => {
     void Promise.all([loadJobs(), loadProjects()]);
@@ -73,8 +89,8 @@ export default function VideoToolPage() {
         setMessage(`Video job ${activeJobId} завершён.`);
         setActiveJobId("");
         await loadJobs();
-      } else if (job.status === "FAILED") {
-        setMessage(`Video job ${activeJobId} завершился с ошибкой.`);
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setMessage(job.errorMessage || `Video job ${activeJobId} завершился с ошибкой.`);
         setActiveJobId("");
         await loadJobs();
       }
@@ -119,10 +135,15 @@ export default function VideoToolPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 700 }}>{job.id}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>{job.id}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
                 </div>
-              ))}
+              </div>
+            ))}
               {jobs.length === 0 ? <div className="muted">Video jobs пока нет.</div> : null}
             </div>
           </div>

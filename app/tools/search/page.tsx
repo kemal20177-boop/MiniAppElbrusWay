@@ -31,6 +31,7 @@ export default function SearchPage() {
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
     void loadSessions();
@@ -67,6 +68,24 @@ export default function SearchPage() {
     await loadSessions();
     setQuery("");
     setFollowUp("");
+  }
+
+  async function openInCanvas(session: SearchSession) {
+    setActionMessage("");
+    const response = await fetch("/api/canvas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `Search: ${session.query}`,
+        content: `${session.answer || ""}\n\n${session.sources.map((source, index) => `[${index + 1}] ${source.title}\n${source.url}\n${source.snippet || ""}`).join("\n\n")}`
+      })
+    });
+    const payload = await response.json();
+    if (response.ok) {
+      window.location.href = `/canvas/${payload.data.canvas.id}`;
+      return;
+    }
+    setActionMessage(payload.error?.message || "Не удалось открыть результат в canvas");
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -127,6 +146,7 @@ export default function SearchPage() {
             </label>
           </div>
           {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
+          {actionMessage ? <div className="muted">{actionMessage}</div> : null}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button className="button-primary" type="submit" disabled={loading}>{loading ? "Ищем..." : "Найти источники"}</button>
             <a className="button-secondary" href="/chat">Открыть chat + search</a>
@@ -152,21 +172,24 @@ export default function SearchPage() {
             {!selected ? <div className="muted">Сначала выполни запрос</div> : null}
             {selected ? (
               <div style={{ display: "grid", gap: 14 }}>
-                <div className="card" style={{ whiteSpace: "pre-wrap" }}>{selected.answer || "Сводка не сформирована"}</div>
+                <div className="card" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{selected.answer || "Сводка не сформирована"}</div>
                 <form onSubmit={onFollowUp} style={{ display: "grid", gap: 10 }}>
                   <textarea value={followUp} onChange={(event) => setFollowUp(event.target.value)} rows={3} placeholder="Follow-up по этой же search session" className="card" style={{ padding: 14 }} />
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <button className="button-primary" type="submit" disabled={!selectedId || loading}>Запустить follow-up</button>
                     <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selected.query)}`}>Создать документ</a>
-                    <a className="button-secondary" href="/canvas">Открыть в canvas</a>
+                    <button className="button-secondary" type="button" onClick={() => void openInCanvas(selected)}>Открыть в canvas</button>
                   </div>
                 </form>
                 <div style={{ display: "grid", gap: 10 }}>
                   {selected.sources.map((source, index) => (
                     <article key={source.id} className="card" style={{ padding: 16 }}>
-                      <div style={{ fontWeight: 700 }}>[{index + 1}] {source.title}</div>
-                      <div className="muted" style={{ marginTop: 6 }}>{source.domain || "web source"}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <div style={{ fontWeight: 700 }}>[{index + 1}] {source.title}</div>
+                        <span className="badge">{source.domain || "web source"}</span>
+                      </div>
                       <div style={{ margin: "10px 0", whiteSpace: "pre-wrap" }}>{source.snippet || "Без сниппета"}</div>
+                      <div className="muted" style={{ marginBottom: 10 }}>{source.url}</div>
                       <a href={source.url} target="_blank" rel="noreferrer" className="button-secondary">Открыть источник</a>
                     </article>
                   ))}

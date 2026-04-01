@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   try {
     const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
-    if (body?.action === "rewrite") {
+    if (body?.mode === "rewrite" || body?.action === "rewrite") {
       const payload = canvasRewriteSchema.parse(body);
       const canvas = await rewriteCanvasSelectionForUser({
         userId: user.id,
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return apiSuccess({ canvas });
     }
 
-    if (body?.action === "rollback") {
+    if (body?.mode === "rollback" || body?.action === "rollback") {
       const payload = canvasRollbackSchema.parse(body);
       const canvas = await rollbackCanvasForUser({
         userId: user.id,
@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return apiSuccess({ canvas });
     }
 
-    if (body?.action === "autosave") {
+    if (body?.mode === "autosave" || body?.action === "autosave") {
       const payload = canvasUpdateSchema.parse(body);
       const canvas = await autosaveCanvasDraft({
         userId: user.id,

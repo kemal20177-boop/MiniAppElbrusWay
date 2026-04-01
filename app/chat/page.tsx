@@ -52,6 +52,7 @@ type CanvasRecord = {
   id: string;
   title: string;
   currentContent: string;
+  versions?: Array<{ version: number; content: string }>;
 };
 
 function formatPricePerMillion(value?: number) {
@@ -97,10 +98,40 @@ export default function ChatPage() {
   const [useProjectContext, setUseProjectContext] = useState(true);
   const [chatQuery, setChatQuery] = useState("");
   const [splitCanvas, setSplitCanvas] = useState<CanvasRecord | null>(null);
+  const [canvasStatus, setCanvasStatus] = useState("");
+  const [canvasSelection, setCanvasSelection] = useState("");
+  const [rollbackVersion, setRollbackVersion] = useState("");
 
   useEffect(() => {
     void Promise.all([loadModels(), loadChats(), loadProjects(), loadFiles(), loadProfile()]);
   }, []);
+
+  useEffect(() => {
+    if (!splitCanvas?.id) {
+      return;
+    }
+
+    setCanvasStatus("Autosaving...");
+    const timer = setTimeout(async () => {
+      const response = await fetch(`/api/canvas/${splitCanvas.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "autosave",
+          content: splitCanvas.currentContent
+        })
+      });
+      const payload = await response.json();
+      if (response.ok) {
+        setSplitCanvas(payload.data.canvas);
+        setCanvasStatus("Saved");
+      } else {
+        setCanvasStatus(payload.error?.message || "Autosave failed");
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [splitCanvas?.currentContent, splitCanvas?.id]);
 
   async function loadModels() {
     const response = await fetch("/api/models");
@@ -241,6 +272,26 @@ export default function ChatPage() {
     const payload = await response.json();
     if (response.ok) {
       setSplitCanvas(payload.data.canvas);
+      setRollbackVersion("");
+      setCanvasStatus("Ready");
+    }
+  }
+
+  async function patchSplitCanvas(body: Record<string, unknown>) {
+    if (!splitCanvas) {
+      return;
+    }
+    const response = await fetch(`/api/canvas/${splitCanvas.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json();
+    if (response.ok) {
+      setSplitCanvas(payload.data.canvas);
+      setCanvasStatus("Updated");
+    } else {
+      setError(payload.error?.message || "Не удалось обновить canvas");
     }
   }
 
@@ -390,7 +441,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: splitCanvas ? "280px minmax(0, 1fr) 380px" : "280px minmax(0, 1fr) 340px", gap: 20, marginTop: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: splitCanvas ? "280px minmax(0, 1fr) 420px" : "280px minmax(0, 1fr) 340px", gap: 20, marginTop: 24 }}>
           <aside className="card" style={{ display: "grid", gap: 12, alignContent: "start" }}>
             <button className="button-primary" type="button" onClick={() => void createChat()}>Новый чат</button>
             <input value={chatQuery} onChange={(event) => { setChatQuery(event.target.value); void loadChats(event.target.value); }} placeholder="Поиск по чатам" style={{ width: "100%", minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }} />
@@ -475,15 +526,50 @@ export default function ChatPage() {
             <div className="card" style={{ padding: 14 }}>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Tool events</div>
               <div style={{ display: "grid", gap: 8 }}>
-                {toolEvents.map((event) => <div key={event.id} className="muted">{event.toolName} · {event.status}</div>)}
+                {toolEvents.map((event) => (
+                  <div key={event.id} className="card" style={{ padding: 10 }}>
+                    <div style={{ fontWeight: 700 }}>{event.toolName}</div>
+                    <div className="muted" style={{ marginTop: 4 }}>{event.status}</div>
+                    {event.output ? <pre style={{ whiteSpace: "pre-wrap", overflow: "auto", marginTop: 8 }}>{JSON.stringify(event.output, null, 2)}</pre> : null}
+                  </div>
+                ))}
                 {toolEvents.length === 0 ? <div className="muted">Tool events появятся здесь.</div> : null}
               </div>
             </div>
             {splitCanvas ? (
               <div className="card" style={{ padding: 14 }}>
-                <div style={{ fontWeight: 700 }}>{splitCanvas.title}</div>
-                <pre style={{ whiteSpace: "pre-wrap", maxHeight: 300, overflow: "auto" }}>{splitCanvas.currentContent}</pre>
-                <a className="button-secondary" href={`/canvas/${splitCanvas.id}`}>Open full canvas</a>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <div style={{ fontWeight: 700 }}>{splitCanvas.title}</div>
+                  <div className="muted">{canvasStatus || "Ready"}</div>
+                </div>
+                <textarea
+                  value={splitCanvas.currentContent}
+                  onChange={(event) => setSplitCanvas((current) => current ? { ...current, currentContent: event.target.value } : current)}
+                  rows={18}
+                  style={{ width: "100%", marginTop: 12, borderRadius: 14, padding: 14, background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                />
+                <textarea
+                  value={canvasSelection}
+                  onChange={(event) => setCanvasSelection(event.target.value)}
+                  rows={4}
+                  placeholder="Selected fragment for rewrite"
+                  style={{ width: "100%", borderRadius: 14, padding: 14, background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(["improve", "shorten", "translate", "explain", "refactor"] as const).map((rewriteAction) => (
+                    <button key={rewriteAction} className="button-secondary" type="button" onClick={() => void patchSplitCanvas({ mode: "rewrite", selection: canvasSelection || undefined, action: rewriteAction })}>
+                      {rewriteAction}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <select value={rollbackVersion} onChange={(event) => setRollbackVersion(event.target.value)} style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
+                    <option value="">Rollback version</option>
+                    {(splitCanvas.versions || []).map((version) => <option key={version.version} value={String(version.version)}>v{version.version}</option>)}
+                  </select>
+                  <button className="button-secondary" type="button" disabled={!rollbackVersion} onClick={() => void patchSplitCanvas({ mode: "rollback", version: Number(rollbackVersion) })}>Rollback</button>
+                  <a className="button-secondary" href={`/canvas/${splitCanvas.id}`}>Open full canvas</a>
+                </div>
               </div>
             ) : null}
           </aside>

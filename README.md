@@ -24,7 +24,7 @@ ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: ед
 - Workspace API: `/api/projects`, `/api/files`, `/api/search`, `/api/documents`, `/api/canvas`, `/api/tools/image`, `/api/tools/audio`, `/api/tools/video`, `/api/tools/vision`
 - Tool Jobs API: `/api/tools/jobs/[id]`
 - Billing API: `/api/payments/create`, `/api/payments/history`, `/api/payments/quote`, `/api/payments/webhook`
-- Admin API: `/api/admin/stats`, `/api/admin/users`, `/api/admin/payments`, `/api/admin/models`, `/api/admin/files`, `/api/admin/projects`, `/api/admin/documents`
+- Admin API: `/api/admin/stats`, `/api/admin/users`, `/api/admin/payments`, `/api/admin/models`, `/api/admin/files`, `/api/admin/projects`, `/api/admin/documents`, `/api/admin/search-sessions`, `/api/admin/jobs`, `/api/admin/audit`, `/api/admin/storage`
 
 ## Стек
 
@@ -84,6 +84,16 @@ npm start
 - `PLATEGA_PAYMENT_METHOD`
 - `UPLOAD_STORAGE_DIR`
 - `MAX_UPLOAD_SIZE_MB`
+- `IMAGE_PROVIDER_API_KEY`
+- `IMAGE_PROVIDER_BASE_URL`
+- `AUDIO_PROVIDER_API_KEY`
+- `AUDIO_PROVIDER_BASE_URL`
+- `VIDEO_PROVIDER_API_KEY`
+- `VIDEO_PROVIDER_BASE_URL`
+- `VISION_PROVIDER_API_KEY`
+- `VISION_PROVIDER_BASE_URL`
+- `TOOL_JOB_TIMEOUT_MS`
+- `TOOL_JOB_MAX_ATTEMPTS`
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
 
@@ -109,16 +119,18 @@ npm start
 10. Прогнать smoke checks:
 
 ```bash
+npm run test:unit
 npm run test:smoke
 ```
 
 ## Beta-статус
 
-Проект уже не выглядит как MVP-заготовка, но это всё ещё beta stage:
+Проект уже близок к production-ready workspace, но это всё ещё beta stage:
 
-- tool pages `image/audio/video/vision` пока идут через встроенные job pipelines и локальные artifacts; для production quality нужен реальный provider layer
-- chat UI, admin UI и split-view UX уже усилены, но ещё можно дополировать отдельным pass
-- search уже подтягивает page content и citations, но не претендует на полноценный crawler
+- production path для `image/audio/video/vision` теперь идёт через provider adapters из `lib/providers/*`, а текстовые/локальные артефакты остались только как безопасный dev fallback
+- tool jobs поддерживают `queued/running/succeeded/failed/cancelled`, polling, retry и cancel поверх `ApiJob`
+- admin UI покрывает workspace-сущности, но ещё можно усилить ручные moderation actions и глубину drill-down
+- search уже делает page fetch + dedupe + citations, но не является полноценным crawler/indexer
 
 ## Release Checklist
 
@@ -126,6 +138,7 @@ npm run test:smoke
 - `npm install`
 - `npx prisma generate`
 - `npx prisma migrate deploy`
+- `npm run test:unit`
 - `npm run test:smoke`
 - `npm run build`
 - проверить руками `/chat`, `/files`, `/documents`, `/tools/*`, `/admin`
