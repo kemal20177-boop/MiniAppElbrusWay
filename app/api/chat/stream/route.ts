@@ -67,12 +67,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const payload = chatSchema.parse(body);
-    const { response, modelConfig } = await createChatStream({
+    const prepared = await createChatStream({
       user,
+      chatId: payload.chatId,
+      projectId: payload.projectId,
       model: payload.model,
-      messages: payload.messages
+      messages: payload.messages,
+      attachmentIds: payload.attachmentIds,
+      tools: payload.tools
     });
-    const upstream = response.body;
+    const modelConfig = prepared.modelConfig;
+    const upstream = prepared.response.body;
 
     if (!upstream) {
       throw new Error("ROUTERAI_STREAM_EMPTY");
@@ -87,7 +92,19 @@ export async function POST(request: NextRequest) {
         let content = "";
         let usage: StreamUsage | null = null;
 
-        controller.enqueue(encoder.encode(toSseEvent("meta", { model: payload.model })));
+        controller.enqueue(
+          encoder.encode(
+            toSseEvent("meta", {
+              model: payload.model,
+              chatId: prepared.chatId,
+              projectId: prepared.projectId || null
+            })
+          )
+        );
+
+        for (const toolEvent of prepared.toolEvents) {
+          controller.enqueue(encoder.encode(toSseEvent("tool", toolEvent)));
+        }
 
         try {
           while (true) {
@@ -158,9 +175,11 @@ export async function POST(request: NextRequest) {
           });
           const persisted = await persistChatCompletion({
             userId: user.id,
-            chatId: payload.chatId,
+            chatId: prepared.chatId,
+            projectId: prepared.projectId,
             model: payload.model,
             messages: payload.messages,
+            attachmentIds: payload.attachmentIds,
             content,
             promptTokens: finalUsage.promptTokens,
             completionTokens: finalUsage.completionTokens,

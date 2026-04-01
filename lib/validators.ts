@@ -26,12 +26,22 @@ export const loginSchema = z.object({
 
 export const chatSchema = z.object({
   chatId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
+  attachmentIds: z.array(z.string().min(1)).max(12).default([]),
+  tools: z
+    .object({
+      webSearch: z.boolean().optional(),
+      projectContext: z.boolean().optional(),
+      fileAnalysis: z.boolean().optional()
+    })
+    .default({}),
   model: z.string().min(3),
   messages: z.array(chatMessageSchema)
 });
 
 export const responseChatSchema = z.object({
   chatId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
   model: z.string().min(3),
   input: z.union([z.string().min(1), z.array(chatMessageSchema)])
 });
@@ -44,7 +54,8 @@ export const embeddingsSchema = z.object({
 
 export const createChatSchema = z.object({
   model: z.string().min(3).default(defaultModelId),
-  title: z.string().min(1).max(120).optional()
+  title: z.string().min(1).max(120).optional(),
+  projectId: z.string().min(1).optional()
 });
 
 export const profileUpdateSchema = z.object({
@@ -116,4 +127,65 @@ export const referralProgramSchema = z.object({
 
 export const referralRewardUpdateSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "PAID", "CANCELLED"])
+});
+
+export const projectCreateSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  slug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/i).optional(),
+  description: z.string().trim().max(1000).optional(),
+  systemPrompt: z.string().trim().max(4000).optional(),
+  color: z.string().trim().max(24).optional(),
+  icon: z.string().trim().max(32).optional()
+});
+
+export const projectUpdateSchema = projectCreateSchema.extend({
+  isArchived: z.boolean().optional()
+});
+
+export const fileUploadMetadataSchema = z.object({
+  projectId: z.string().min(1).optional()
+});
+
+export const fileAnalyzeSchema = z.object({
+  mode: z.enum(["summary", "vision"]).default("summary")
+});
+
+export const searchSessionCreateSchema = z.object({
+  query: z.string().trim().min(2).max(500),
+  projectId: z.string().min(1).optional(),
+  chatId: z.string().min(1).optional(),
+  latestOnly: z.boolean().optional(),
+  depth: z.enum(["SHORT", "STANDARD", "DEEP"]).default("STANDARD")
+});
+
+export const documentCreateSchema = z.object({
+  title: z.string().trim().min(2).max(160),
+  prompt: z.string().trim().min(2).max(8000),
+  projectId: z.string().min(1).optional(),
+  sourceFileId: z.string().min(1).optional()
+});
+
+export const documentUpdateSchema = z.object({
+  title: z.string().trim().min(2).max(160).optional(),
+  content: z.string().min(1),
+  changeSummary: z.string().trim().max(400).optional()
+});
+
+export const documentExportSchema = z.object({
+  format: z.enum(["PDF", "DOCX", "PPTX", "MD", "TXT"])
+});
+
+export const canvasCreateSchema = z.object({
+  title: z.string().trim().min(2).max(160),
+  content: z.string().min(1),
+  projectId: z.string().min(1).optional(),
+  kind: z.enum(["TEXT", "MARKDOWN", "CODE", "JSON", "HTML", "SQL"]).optional(),
+  language: z.string().trim().max(32).optional(),
+  prompt: z.string().trim().max(4000).optional()
+});
+
+export const canvasUpdateSchema = z.object({
+  title: z.string().trim().min(2).max(160).optional(),
+  content: z.string().min(1),
+  prompt: z.string().trim().max(4000).optional()
 });

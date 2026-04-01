@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { Header } from "@/components/ui/header";
-import { Footer } from "@/components/ui/footer";
+import { AppShell } from "@/components/app/app-shell";
+import { getCurrentUserFromCookies } from "@/lib/auth";
 import { siteConfig } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -11,13 +11,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url)
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUserFromCookies();
+
   return (
     <html lang="ru">
       <body>
-        <Header />
-        {children}
-        <Footer />
+        <AppShell children={children} user={user} />
       </body>
     </html>
   );

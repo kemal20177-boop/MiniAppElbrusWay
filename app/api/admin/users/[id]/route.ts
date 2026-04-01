@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminUser } from "@/lib/admin";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { adminUserUpdateSchema } from "@/lib/validators";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await requireAdminUser(request);
+    const admin = await requireAdminUser(request);
     const body = await request.json();
     const payload = adminUserUpdateSchema.parse(body);
 
@@ -52,6 +53,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       }
 
       return updated;
+    });
+
+    await writeAuditLog({
+      action: "admin.user.update",
+      actorId: admin.id,
+      entityType: "user",
+      entityId: user.id,
+      details: {
+        role: payload.role,
+        plan: payload.plan,
+        billingPlanId: payload.billingPlanId,
+        tokenBalance: payload.tokenBalance,
+        tokenDelta: payload.tokenDelta
+      }
     });
 
     return NextResponse.json({ ok: true, user });

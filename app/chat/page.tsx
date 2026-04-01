@@ -8,139 +8,112 @@ type ChatSummary = {
   title: string;
   model: string;
   updatedAt: string;
+  projectId?: string | null;
 };
 
 type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
+  attachments?: Array<{ id: string; originalName: string }>;
 };
 
 type ModelOption = {
   id: string;
   name: string;
   provider: string;
+  supportsFiles: boolean;
+  supportsWebSearch: boolean;
   pricing: {
     prompt?: number;
     completion?: number;
   } | null;
-  contextLength: number | null;
-  supportsImages: boolean;
-  supportsFiles: boolean;
-  supportsAudio: boolean;
-  supportsVideo: boolean;
-  supportsWebSearch: boolean;
-  supportsReasoning: boolean;
-  supportsTools: boolean;
 };
 
-const featuredMatchers = [
-  /chatgpt|gpt-4o|gpt-4\.1/i,
-  /nanobanana|banana/i,
-  /grok/i,
-  /veo/i,
-  /sora/i,
-  /solla|suno/i,
-  /deepseek-chat|deepseek/i
-];
+type ProjectOption = {
+  id: string;
+  title: string;
+};
 
-const categoryOrder = [
-  { id: "top", label: "Топ 7" },
-  { id: "chat", label: "Чат" },
-  { id: "image", label: "Изображения" },
-  { id: "video", label: "Видео" },
-  { id: "coding", label: "Программирование" },
-  { id: "audio", label: "Аудио" }
-] as const;
+type UserFileItem = {
+  id: string;
+  originalName: string;
+  kind: string;
+};
 
-function inferModelCategory(model: ModelOption) {
-  const haystack = `${model.id} ${model.name}`.toLowerCase();
-
-  if (model.supportsVideo || /video|veo|sora|kling|seedance|runway/.test(haystack)) {
-    return "video";
-  }
-
-  if (model.supportsAudio || /audio|speech|tts|whisper|voice|suno|solla/.test(haystack)) {
-    return "audio";
-  }
-
-  if (model.supportsImages || /image|flux|banana|nano|midjourney|recraft/.test(haystack)) {
-    return "image";
-  }
-
-  if (/code|coder|program|claude|gpt-4\.1|deepseek-coder|qwen.*coder/.test(haystack)) {
-    return "coding";
-  }
-
-  return "chat";
-}
-
-function pickFeaturedModels(models: ModelOption[]) {
-  const picked: ModelOption[] = [];
-
-  for (const matcher of featuredMatchers) {
-    const match = models.find((model) => matcher.test(`${model.id} ${model.name}`) && !picked.some((entry) => entry.id === model.id));
-    if (match) {
-      picked.push(match);
-    }
-  }
-
-  for (const model of models) {
-    if (picked.length >= 7) {
-      break;
-    }
-
-    if (!picked.some((entry) => entry.id === model.id)) {
-      picked.push(model);
-    }
-  }
-
-  return picked.slice(0, 7);
-}
+type ToolEvent = {
+  id: string;
+  toolName: string;
+  status: string;
+  output?: Record<string, unknown>;
+};
 
 function formatPricePerMillion(value?: number) {
   if (typeof value !== "number") {
     return "n/a";
   }
 
-  return `${(value * 1_000_000).toFixed(value * 1_000_000 >= 1 ? 2 : 4)} ₽`;
+  return `${(value * 1_000_000).toFixed(2)} ₽`;
 }
 
 export default function ChatPage() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [models, setModels] = useState<ModelOption[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [files, setFiles] = useState<UserFileItem[]>([]);
   const [selectedModel, setSelectedModel] = useState(defaultModelId);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [chatId, setChatId] = useState<string | undefined>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [activeCategory, setActiveCategory] = useState<(typeof categoryOrder)[number]["id"]>("top");
+  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [useProjectContext, setUseProjectContext] = useState(true);
 
   useEffect(() => {
-    void loadModels();
-    void loadChats();
-    void loadProfile();
+    void Promise.all([loadModels(), loadChats(), loadProjects(), loadFiles(), loadProfile()]);
   }, []);
 
-  const activeModel = models.find((entry) => entry.id === selectedModel);
-  const featuredModels = pickFeaturedModels(models);
-  const filteredModels =
-    activeCategory === "top"
-      ? featuredModels
-      : models.filter((model) => inferModelCategory(model) === activeCategory);
+  async function loadModels() {
+    const response = await fetch("/api/models");
+    const payload = await response.json();
+    if (!response.ok || !Array.isArray(payload.data)) {
+      return;
+    }
+
+    setModels(payload.data);
+    if (!payload.data.some((entry: ModelOption) => entry.id === selectedModel) && payload.data[0]?.id) {
+      setSelectedModel(payload.data[0].id);
+    }
+  }
 
   async function loadChats() {
     const response = await fetch("/api/chats");
     const payload = await response.json();
     if (!response.ok) {
-      setError("Войдите, чтобы работать с чатами");
+      setError("Нужна авторизация для работы с чатами");
       return;
     }
 
-    setChats(payload.chats);
-    if (payload.chats[0]) {
-      void openChat(payload.chats[0].id);
+    setChats(payload.chats || []);
+  }
+
+  async function loadProjects() {
+    const response = await fetch("/api/projects");
+    const payload = await response.json();
+    if (response.ok) {
+      setProjects(payload.data.projects || []);
+    }
+  }
+
+  async function loadFiles() {
+    const response = await fetch("/api/files");
+    const payload = await response.json();
+    if (response.ok) {
+      setFiles(payload.data.files || []);
     }
   }
 
@@ -152,43 +125,37 @@ export default function ChatPage() {
     }
   }
 
-  async function loadModels() {
-    const response = await fetch("/api/models");
-    const payload = await response.json();
-    if (!response.ok || !Array.isArray(payload.data)) {
-      return;
-    }
-
-    setModels(payload.data);
-    if (payload.data.some((entry: ModelOption) => entry.id === selectedModel)) {
-      return;
-    }
-
-    if (payload.data[0]?.id) {
-      setSelectedModel(payload.data[0].id);
-    }
-  }
-
-  async function openChat(id: string) {
-    const response = await fetch(`/api/chats/${id}/messages`);
+  async function openChat(nextChatId: string) {
+    const response = await fetch(`/api/chats/${nextChatId}/messages`);
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.message || "Не удалось загрузить чат");
+      setError(payload.message || "Не удалось открыть чат");
       return;
     }
 
-    setChatId(id);
-    setMessages(payload.messages.map((entry: { role: ChatMessage["role"]; content: string }) => ({
-      role: entry.role,
-      content: entry.content
-    })));
+    setChatId(nextChatId);
+    setSelectedProjectId(payload.chat.projectId || "");
+    setMessages(
+      (payload.messages || []).map((entry: { role: ChatMessage["role"]; content: string; attachments?: Array<{ file: { id: string; originalName: string } }> }) => ({
+        role: entry.role,
+        content: entry.content,
+        attachments: (entry.attachments || []).map((attachment) => ({
+          id: attachment.file.id,
+          originalName: attachment.file.originalName
+        }))
+      }))
+    );
+    setToolEvents(payload.toolCalls || []);
   }
 
   async function createChat() {
     const response = await fetch("/api/chats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: selectedModel })
+      body: JSON.stringify({
+        model: selectedModel,
+        projectId: selectedProjectId || undefined
+      })
     });
     const payload = await response.json();
     if (!response.ok) {
@@ -196,9 +163,10 @@ export default function ChatPage() {
       return;
     }
 
-    setChats((prev) => [payload.chat, ...prev]);
     setChatId(payload.chat.id);
     setMessages([]);
+    setToolEvents([]);
+    await loadChats();
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -207,27 +175,46 @@ export default function ChatPage() {
       return;
     }
 
-    setError("");
+    const attachedFiles = files.filter((file) => selectedFiles.includes(file.id));
     const previousMessages = messages;
-    const nextMessages = [...messages, { role: "user" as const, content: input }, { role: "assistant" as const, content: "" }];
+    const nextMessages = [
+      ...messages,
+      {
+        role: "user" as const,
+        content: input,
+        attachments: attachedFiles.map((file) => ({
+          id: file.id,
+          originalName: file.originalName
+        }))
+      },
+      { role: "assistant" as const, content: "" }
+    ];
+
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
+    setError("");
+    setToolEvents([]);
 
     try {
-      const requestMessages = nextMessages
-        .filter((message, index) => !(index === nextMessages.length - 1 && message.role === "assistant" && !message.content))
-        .map((message) => ({
-          role: message.role,
-          content: message.content
-        }));
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chatId,
+          projectId: selectedProjectId || undefined,
           model: selectedModel,
-          messages: requestMessages
+          attachmentIds: selectedFiles,
+          tools: {
+            webSearch: useWebSearch,
+            projectContext: useProjectContext
+          },
+          messages: nextMessages
+            .filter((entry) => !(entry.role === "assistant" && !entry.content))
+            .map((entry) => ({
+              role: entry.role,
+              content: entry.content
+            }))
         })
       });
 
@@ -261,14 +248,21 @@ export default function ChatPage() {
           buffer = buffer.slice(boundaryIndex + 2);
           boundaryIndex = buffer.indexOf("\n\n");
 
-          const eventLine = block.split("\n").find((line) => line.startsWith("event:"));
+          const eventType = block.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim();
           const dataLine = block.split("\n").find((line) => line.startsWith("data:"));
-          if (!eventLine || !dataLine) {
+          if (!eventType || !dataLine) {
             continue;
           }
 
-          const eventType = eventLine.slice(6).trim();
           const payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>;
+
+          if (eventType === "meta") {
+            finalChatId = typeof payload.chatId === "string" ? payload.chatId : finalChatId;
+          }
+
+          if (eventType === "tool") {
+            setToolEvents((prev) => [...prev, payload as unknown as ToolEvent]);
+          }
 
           if (eventType === "delta") {
             streamedContent += String(payload.content || "");
@@ -291,6 +285,7 @@ export default function ChatPage() {
       }
 
       setChatId(finalChatId);
+      setSelectedFiles([]);
       if (typeof finalTokenBalance === "number") {
         setTokenBalance(finalTokenBalance);
       }
@@ -303,161 +298,127 @@ export default function ChatPage() {
     }
   }
 
+  const activeModel = models.find((entry) => entry.id === selectedModel);
+
   return (
-    <main className="shell" style={{ padding: "18px 0 56px" }}>
-      <div className="panel" style={{ padding: 24, minHeight: "72vh" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 }}>
+    <main className="workspace-page">
+      <section className="panel workspace-panel">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 34 }}>Чат</h1>
-            <div className="muted">Актуальный каталог RouterAI, сохранение истории, списание токенов и живой баланс.</div>
+            <div className="badge">Chat Core 2.0</div>
+            <h1 className="section-title" style={{ marginTop: 16 }}>Чат, проекты, файлы и tools</h1>
+            <p className="section-copy" style={{ maxWidth: 880 }}>
+              SSE-стриминг, project context, chat attachments и web search уже работают как единый сценарий.
+            </p>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <span className="badge">{activeModel?.name || selectedModel}</span>
-            <span className="badge">RouterAI</span>
             <span className="badge">Баланс: {tokenBalance ?? "..."}</span>
+            <span className="badge">{activeModel?.name || selectedModel}</span>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr)", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr) 340px", gap: 20, marginTop: 24 }}>
           <aside className="card" style={{ display: "grid", gap: 12, alignContent: "start" }}>
-            <button className="button-primary" onClick={() => void createChat()}>+ Новый чат</button>
-            {chats.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="card"
-                onClick={() => void openChat(item.id)}
-                style={{
-                  padding: 16,
-                  textAlign: "left",
-                  background: item.id === chatId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)"
-                }}
-              >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>{item.title}</div>
-                <div className="muted" style={{ fontSize: 14 }}>{new Date(item.updatedAt).toLocaleString("ru-RU")}</div>
+            <button className="button-primary" type="button" onClick={() => void createChat()}>Новый чат</button>
+            <div className="muted" style={{ fontSize: 14 }}>История</div>
+            {chats.map((chat) => (
+              <button key={chat.id} type="button" className="card" onClick={() => void openChat(chat.id)} style={{ padding: 16, textAlign: "left", background: chat.id === chatId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
+                <div style={{ fontWeight: 700 }}>{chat.title}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{new Date(chat.updatedAt).toLocaleString("ru-RU")}</div>
               </button>
             ))}
           </aside>
 
-          <section className="card" style={{ display: "grid", gridTemplateRows: "1fr auto", minHeight: 520 }}>
-            <div style={{ display: "grid", gap: 14, alignContent: "start", paddingBottom: 18 }}>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {categoryOrder.map((category) => (
-                    <button
-                      key={category.id}
-                      type="button"
-                      className={activeCategory === category.id ? "button-primary" : "button-ghost"}
-                      onClick={() => setActiveCategory(category.id)}
-                      style={{ minHeight: 38 }}
-                    >
-                      {category.label}
-                    </button>
-                  ))}
-                </div>
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span className="muted">Модель</span>
-                  <select
-                    value={selectedModel}
-                    onChange={(event) => setSelectedModel(event.target.value)}
-                    style={{
-                      width: "100%",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                      color: "var(--text-primary)",
-                      padding: 12
-                    }}
-                  >
-                    {filteredModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.provider} · {model.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {activeCategory === "top" ? (
-                  <div className="muted" style={{ fontSize: 14 }}>
-                    Быстрый доступ к самым востребованным моделям. Для остальных переключай категорию выше.
-                  </div>
-                ) : (
-                  <div className="muted" style={{ fontSize: 14 }}>
-                    Показано моделей в категории: {filteredModels.length}
-                  </div>
-                )}
-                {activeModel ? (
-                  <div className="muted" style={{ fontSize: 14 }}>
-                    In: {formatPricePerMillion(activeModel.pricing?.prompt)} / 1M · Out:{" "}
-                    {formatPricePerMillion(activeModel.pricing?.completion)} / 1M · Контекст:{" "}
-                    {activeModel.contextLength?.toLocaleString("ru-RU") || "n/a"}
-                  </div>
-                ) : null}
-              </div>
-              {messages.length === 0 ? (
-                <div className="muted">Создайте чат или отправьте первое сообщение.</div>
-              ) : null}
+          <section className="card" style={{ display: "grid", gridTemplateRows: "1fr auto", minHeight: 720 }}>
+            <div style={{ display: "grid", gap: 12, alignContent: "start", paddingBottom: 20 }}>
+              {messages.length === 0 ? <div className="muted">Выбери чат или отправь первое сообщение.</div> : null}
               {messages.map((message, index) => (
-                <article
-                  key={`${message.role}-${index}`}
-                  style={{
-                    justifySelf: message.role === "user" ? "end" : "start",
-                    maxWidth: "80%",
-                    padding: "16px 18px",
-                    borderRadius: 18,
-                    background:
-                      message.role === "user"
-                        ? "linear-gradient(135deg, rgba(30,111,217,0.9), rgba(0,200,232,0.65))"
-                        : "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    whiteSpace: "pre-wrap"
-                  }}
-                >
-                  {message.content}
+                <article key={`${message.role}-${index}`} style={{ justifySelf: message.role === "user" ? "end" : "start", maxWidth: "86%", padding: "16px 18px", borderRadius: 18, background: message.role === "user" ? "linear-gradient(135deg, rgba(30,111,217,0.9), rgba(0,200,232,0.65))" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", whiteSpace: "pre-wrap" }}>
+                  <div>{message.content}</div>
+                  {message.attachments?.length ? (
+                    <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>
+                      Вложения: {message.attachments.map((attachment) => attachment.originalName).join(", ")}
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
 
             <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Напишите сообщение..."
-                rows={5}
-                style={{
-                  width: "100%",
-                  resize: "vertical",
-                  borderRadius: 18,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(255,255,255,0.03)",
-                  color: "var(--text-primary)",
-                  padding: 16
-                }}
-              />
+              <textarea value={input} onChange={(event) => setInput(event.target.value)} rows={6} placeholder="Напиши сообщение или задачу..." style={{ width: "100%", resize: "vertical", borderRadius: 18, padding: 16, background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }} />
               {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div className="muted">
-                  {activeModel
-                    ? [
-                        activeModel.supportsImages ? "image" : null,
-                        activeModel.supportsFiles ? "file" : null,
-                        activeModel.supportsAudio ? "audio" : null,
-                        activeModel.supportsVideo ? "video" : null,
-                        activeModel.supportsWebSearch ? "web-search" : null,
-                        activeModel.supportsReasoning ? "reasoning" : null,
-                        activeModel.supportsTools ? "tools" : null
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "text-only"
-                    : "Загрузка каталога моделей..."}
+                  In: {formatPricePerMillion(activeModel?.pricing?.prompt)} · Out: {formatPricePerMillion(activeModel?.pricing?.completion)}
                 </div>
-                <button type="submit" className="button-primary" disabled={loading || models.length === 0}>
+                <button className="button-primary" type="submit" disabled={loading || !activeModel}>
                   {loading ? "Генерация..." : "Отправить"}
                 </button>
               </div>
             </form>
           </section>
+
+          <aside className="card" style={{ display: "grid", gap: 16, alignContent: "start" }}>
+            <h2 style={{ margin: 0 }}>Контекст</h2>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="muted">Проект</span>
+              <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} style={{ width: "100%", minHeight: 44, borderRadius: 14, padding: "0 12px", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+                <option value="">Без проекта</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.title}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span className="muted">Модель</span>
+              <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} style={{ width: "100%", minHeight: 44, borderRadius: 14, padding: "0 12px", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }}>
+                {models.map((model) => (
+                  <option key={model.id} value={model.id}>{model.provider} · {model.name}</option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <div className="muted" style={{ marginBottom: 8 }}>Вложения</div>
+              <div style={{ display: "grid", gap: 8, maxHeight: 180, overflow: "auto" }}>
+                {files.map((file) => (
+                  <label key={file.id} className="card" style={{ padding: 12, display: "flex", gap: 10, alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedFiles.includes(file.id)}
+                      onChange={(event) => {
+                        setSelectedFiles((prev) =>
+                          event.target.checked ? [...prev, file.id] : prev.filter((entry) => entry !== file.id)
+                        );
+                      }}
+                    />
+                    <span>{file.originalName}</span>
+                  </label>
+                ))}
+                {files.length === 0 ? <div className="muted">Файлов пока нет. Сначала загрузи их в Files.</div> : null}
+              </div>
+            </div>
+            <label className="card" style={{ padding: 14, display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={useProjectContext} onChange={(event) => setUseProjectContext(event.target.checked)} />
+              <span>Подмешивать контекст проекта</span>
+            </label>
+            <label className="card" style={{ padding: 14, display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={useWebSearch} onChange={(event) => setUseWebSearch(event.target.checked)} />
+              <span>Использовать web search tool</span>
+            </label>
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Tool events</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {toolEvents.map((event) => (
+                  <div key={event.id} className="muted">
+                    {event.toolName} · {event.status}
+                  </div>
+                ))}
+                {toolEvents.length === 0 ? <div className="muted">Tool events появятся здесь во время генерации.</div> : null}
+              </div>
+            </div>
+          </aside>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

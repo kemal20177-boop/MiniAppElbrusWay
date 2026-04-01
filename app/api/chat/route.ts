@@ -35,8 +35,11 @@ export async function POST(request: NextRequest) {
     const result = await completeChat({
       user,
       chatId: payload.chatId,
+      projectId: payload.projectId,
       model: payload.model,
-      messages: payload.messages
+      messages: payload.messages,
+      attachmentIds: payload.attachmentIds,
+      tools: payload.tools
     });
 
     return NextResponse.json(

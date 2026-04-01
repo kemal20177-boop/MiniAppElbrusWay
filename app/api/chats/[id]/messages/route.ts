@@ -20,8 +20,50 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   const messages = await prisma.message.findMany({
     where: { chatId: chat.id },
+    include: {
+      attachments: {
+        include: {
+          file: {
+            select: {
+              id: true,
+              originalName: true,
+              mimeType: true,
+              kind: true,
+              previewUrl: true
+            }
+          }
+        }
+      },
+      toolCalls: {
+        orderBy: { createdAt: "asc" }
+      }
+    },
     orderBy: { createdAt: "asc" }
   });
 
-  return NextResponse.json({ ok: true, chat, messages });
+  const chatAttachments = await prisma.chatAttachment.findMany({
+    where: {
+      chatId: chat.id,
+      messageId: null
+    },
+    include: {
+      file: {
+        select: {
+          id: true,
+          originalName: true,
+          mimeType: true,
+          kind: true,
+          previewUrl: true
+        }
+      }
+    },
+    orderBy: { createdAt: "asc" }
+  });
+
+  const toolCalls = await prisma.chatToolCall.findMany({
+    where: { chatId: chat.id },
+    orderBy: { createdAt: "asc" }
+  });
+
+  return NextResponse.json({ ok: true, chat, messages, chatAttachments, toolCalls });
 }

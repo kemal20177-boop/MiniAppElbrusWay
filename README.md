@@ -1,74 +1,110 @@
 # ElbrusWay AI
 
-MVP-каркас платформы агрегации AI-моделей для российских пользователей.
+ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: единый кабинет, единый токен-баланс, единый чат и рабочие модули вокруг RouterAI.
 
-## Что уже есть
+## Что реализовано сейчас
 
-- Next.js 14 App Router приложение
-- Дизайн-направление для `elbrusway.ru`
-- Страницы: `/`, `/chat`, `/rates`, `/profile`, `/auth/login`, `/auth/register`, `/admin`
-- API route handlers: `/api/healthz`, `/api/models`, `/api/chat`, `/api/auth/register`, `/api/auth/login`, `/api/payments/create`, `/api/payments/webhook`
-- Prisma-схема под пользователей, чаты, платежи, тарифы и модели
-- Docker / nginx / systemd-файлы для деплоя
+- auth + cookie sessions
+- chat core 2.0 с SSE, project context, file attachments и tool events
+- projects как контейнер для чатов, файлов, документов и canvas
+- files/upload flow с локальным storage, извлечением текста, chunking и анализом
+- web search с сохранением search sessions и источников
+- documents flow: генерация source, version history, canvas-open path и export в `pdf/docx/pptx/md/txt`
+- canvas flow: создание, редактирование, version history и line diff
+- billing и payment flow через Platega
+- admin API для users, payments, models, plans, promo/referrals, files, projects, documents
+- audit logs, rate limit, spending limits, zod validation, auth/role guards
+
+## Основные маршруты
+
+- UI: `/`, `/chat`, `/projects`, `/projects/[id]`, `/files`, `/documents`, `/canvas`, `/canvas/[id]`, `/tools/search`, `/tools/vision`, `/tools/documents`, `/rates`, `/profile`, `/admin`
+- Core API: `/api/chat`, `/api/chat/stream`, `/api/chats`, `/api/models`
+- Workspace API: `/api/projects`, `/api/files`, `/api/search`, `/api/documents`, `/api/canvas`
+- Billing API: `/api/payments/create`, `/api/payments/history`, `/api/payments/quote`, `/api/payments/webhook`
+- Admin API: `/api/admin/stats`, `/api/admin/users`, `/api/admin/payments`, `/api/admin/models`, `/api/admin/files`, `/api/admin/projects`, `/api/admin/documents`
 
 ## Стек
 
-- Next.js 14 + TypeScript
-- Tailwind CSS
+- Next.js 14 App Router
+- TypeScript
 - Prisma + PostgreSQL
 - Redis
 - RouterAI
-- ЮKassa
+- Platega
+- JSZip для `docx/pptx` exports
 
-## Быстрый старт
+## Локальный запуск
+
+1. Скопировать env:
 
 ```bash
 cp .env.example .env
+```
+
+2. Установить зависимости:
+
+```bash
 npm install
+```
+
+3. Применить Prisma migrations и сгенерировать client:
+
+```bash
+npx prisma generate
+npx prisma migrate deploy
+```
+
+4. Запустить dev:
+
+```bash
+npm run dev
+```
+
+5. Production build локально:
+
+```bash
 npm run build
 npm start
 ```
 
-Разработка:
+## Важные env-переменные
 
-```bash
-npm install
-npm run dev
-```
+- `DATABASE_URL`
+- `REDIS_URL`
+- `ROUTERAI_API_KEY`
+- `ROUTERAI_PROVIDER_COUNTRY`
+- `SPENDING_LIMIT_RUB_PER_REQUEST`
+- `SPENDING_LIMIT_RUB_PER_USER_PER_DAY`
+- `SPENDING_LIMIT_RUB_PER_DAY`
+- `PLATEGA_MERCHANT_ID`
+- `PLATEGA_SECRET_KEY`
+- `PLATEGA_PAYMENT_METHOD`
+- `UPLOAD_STORAGE_DIR`
+- `MAX_UPLOAD_SIZE_MB`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
 
-Prisma:
+## Ручная проверка сценариев
 
-```bash
-npx prisma generate
-npx prisma migrate dev
-```
+1. Зарегистрировать нового пользователя и войти.
+2. В `/files` загрузить `txt/md/pdf/png` файл, открыть карточку и нажать "Проанализировать".
+3. В `/projects` создать проект, затем открыть его и проверить счётчики.
+4. В `/chat` выбрать проект, отметить файлы, включить `project context` и `web search`, отправить сообщение и убедиться, что:
+   - создаётся/обновляется chat,
+   - идут SSE delta events,
+   - появляются tool events,
+   - сообщения и attachments сохраняются.
+5. В `/tools/search` выполнить запрос и проверить сохранённые источники.
+6. В `/documents` создать документ, затем нажать export в `PDF`, `DOCX`, `PPTX`, `MD`, `TXT`.
+7. В `/canvas` создать canvas, открыть `/canvas/[id]`, сохранить новую версию и посмотреть diff.
+8. В `/admin` проверить stats/users/payments/models и новые backend endpoints:
+   - `/api/admin/files`
+   - `/api/admin/projects`
+   - `/api/admin/documents`
 
-## Что сейчас реализовано как MVP
+## Миграции
 
-- UI и структура ключевых страниц
-- Регистрация, логин, logout и cookie-сессии
-- Персистентные чаты, сообщения, платежи и транзакции в PostgreSQL через Prisma
-- Базовый чат-клиент, который ходит в `/api/chat`
-- Proxy к RouterAI с fallback-ответом, если `ROUTERAI_API_KEY` не задан
-- Живой каталог RouterAI через `/api/v1/models` с реальными ценами, контекстом и модальностями
-- Расчет себестоимости сообщений по фактическому `pricing` выбранной модели RouterAI
-- Backend policy-checks перед вызовом RouterAI: whitelist моделей по тарифу, `max_tokens` cap и spending limits через env
-- Rate limiting на `/api/chat`: Redis при наличии `REDIS_URL`, fallback на in-memory window в dev
-- Профиль пользователя, статистика и admin API
-
-## Что ещё надо довести до production
-
-- Добавить полный streaming chat flow через SSE
-- Подключить реальную ЮKassa вместо локального success flow
-- Redis rate limiting и кэш моделей
-- OAuth, email verification, reset password
-- Расширить admin CRUD и аналитику
-
-## Admin bootstrap
-
-- Админ создаётся из `ADMIN_EMAIL`
-- Если база пустая, пароль берётся из `ADMIN_PASSWORD`
-- По умолчанию в шаблоне: `admin@elbrusway.ru / Admin12345!`
+Новых schema-изменений в этом инкременте не потребовалось: нужные Prisma-модели для `projects/files/documents/canvas/search/audit` уже были заведены в репозитории и покрываются существующими migrations, которые нужно применить через `npx prisma migrate deploy`.
 
 ## Деплой
 
@@ -78,4 +114,4 @@ npx prisma migrate dev
 - `deploy/miniappelbrusway.service`
 - `deploy/deploy_elbrusway.sh`
 
-Если SSL уже выпущен, деплой сводится к установке зависимостей, сборке и рестарту `systemd`-сервиса.
+Если SSL уже выпущен, деплой сводится к установке зависимостей, применению миграций, сборке и рестарту `systemd`-сервиса.

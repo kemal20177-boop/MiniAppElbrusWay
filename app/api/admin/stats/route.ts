@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAdminUser } from "@/lib/admin";
 import { PaymentStatus, Plan } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getRouterCredits } from "@/lib/app";
 import { ensureDefaultPlanConfigs, ensureReferralProgram } from "@/lib/billing";
+import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,8 +53,7 @@ export async function GET(request: NextRequest) {
       })
     ]);
 
-    return NextResponse.json({
-      ok: true,
+    return apiSuccess({
       stats: {
         users,
         revenue30d: Number(revenue._sum.amount || 0),
@@ -74,6 +74,6 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 403 });
+    return apiError("ADMIN_STATS_FORBIDDEN", resolveErrorMessage(error, "FORBIDDEN"), 403);
   }
 }
