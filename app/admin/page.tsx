@@ -375,7 +375,7 @@ export default function AdminPage() {
   return (
     <main className="shell" style={{ padding: "18px 0 56px" }}>
       <section className="panel" style={{ padding: 28 }}>
-        <div className="badge">Admin</div>
+        <div className="badge">Админка</div>
         <h1 className="section-title" style={{ marginTop: 16 }}>Административная панель</h1>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
         {message ? <div style={{ color: "var(--success)", marginTop: 12 }}>{message}</div> : null}
@@ -392,10 +392,10 @@ export default function AdminPage() {
             ["Файлы", String(stats?.filesCount ?? "...")],
             ["Документы", String(stats?.documentsCount ?? "...")],
             ["Проекты", String(stats?.projectsCount ?? "...")],
-            ["Search runs", String(stats?.searchRuns ?? "...")],
-            ["Exports", String(stats?.exportsCount ?? "...")],
-            ["Failed jobs", String(stats?.failedJobsCount ?? "...")],
-            ["Storage", `${String(stats?.storageBytes ?? "...")} bytes`],
+            ["Поисковых запусков", String(stats?.searchRuns ?? "...")],
+            ["Экспортов", String(stats?.exportsCount ?? "...")],
+            ["Ошибок заданий", String(stats?.failedJobsCount ?? "...")],
+            ["Хранилище", `${String(stats?.storageBytes ?? "...")} bytes`],
             [
               "Баланс RouterAI",
               stats?.routerCredits == null ? String(stats?.routerCreditsError ?? "...") : `${String(stats?.routerCredits)} ₽`
@@ -556,7 +556,7 @@ export default function AdminPage() {
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Files</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Файлы</div>
             {adminFiles.slice(0, 12).map((file) => (
               <div key={String(file.id)} className="muted">
                 {String(file.originalName)} · {String(file.kind)} · {String(file.status)}
@@ -564,18 +564,18 @@ export default function AdminPage() {
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Projects</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Проекты</div>
             {adminProjects.slice(0, 12).map((project) => (
               <div key={String(project.id)} className="muted">
-                {String(project.title)} · chats {String((project._count as Record<string, unknown> | undefined)?.chats || 0)} · files {String((project._count as Record<string, unknown> | undefined)?.files || 0)}
+                {String(project.title)} · чаты {String((project._count as Record<string, unknown> | undefined)?.chats || 0)} · файлы {String((project._count as Record<string, unknown> | undefined)?.files || 0)}
               </div>
             ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Documents</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Документы</div>
             {adminDocuments.slice(0, 12).map((document) => (
               <div key={String(document.id)} className="muted">
-                {String(document.title)} · {String(document.status)} · exports {String((document.exports as unknown[] | undefined)?.length || 0)}
+                {String(document.title)} · {String(document.status)} · экспортов {String((document.exports as unknown[] | undefined)?.length || 0)}
               </div>
             ))}
           </div>
@@ -583,7 +583,7 @@ export default function AdminPage() {
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Search Sessions</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Поисковые сессии</div>
             <div style={{ display: "grid", gap: 12 }}>
               {searchSessions.slice(0, 12).map((session) => (
                 <div key={String(session.id)} className="card" style={{ padding: 14 }}>
@@ -592,7 +592,7 @@ export default function AdminPage() {
                     {String((session.user as Record<string, unknown> | null)?.email || "—")} · {formatDateTime(session.createdAt)}
                   </div>
                   <div className="muted" style={{ marginTop: 6 }}>
-                    sources {(session.sources as unknown[] | undefined)?.length || 0} · project {String((session.project as Record<string, unknown> | null)?.title || "—")}
+                    источников {(session.sources as unknown[] | undefined)?.length || 0} · проект {String((session.project as Record<string, unknown> | null)?.title || "—")}
                   </div>
                 </div>
               ))}
@@ -600,7 +600,7 @@ export default function AdminPage() {
           </div>
 
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Tool Jobs</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Задания инструментов</div>
             <div style={{ display: "grid", gap: 12 }}>
               {toolJobs.slice(0, 12).map((job) => (
                 <div key={String(job.id)} className="card" style={{ padding: 14 }}>
@@ -617,19 +617,19 @@ export default function AdminPage() {
           </div>
 
           <div className="card">
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>Storage / Usage</div>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Хранилище и использование</div>
             <div className="muted" style={{ marginBottom: 12 }}>
-              Total storage: {String(storageInfo?.totalStorageBytes ?? stats?.storageBytes ?? "...")} bytes
+              Общий объём: {String(storageInfo?.totalStorageBytes ?? stats?.storageBytes ?? "...")} bytes
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {((storageInfo?.filesByKind as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
                 <div key={String(entry.kind)} className="muted">
-                  {String(entry.kind)} · {String(entry.count)} files · {String(entry.sizeBytes)} bytes
+                  {String(entry.kind)} · {String(entry.count)} файлов · {String(entry.sizeBytes)} bytes
                 </div>
               ))}
               {((storageInfo?.jobsByStatus as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
                 <div key={String(entry.status)} className="muted">
-                  jobs {String(entry.status)} · {String(entry.count)}
+                  задания {String(entry.status)} · {String(entry.count)}
                 </div>
               ))}
             </div>
@@ -637,7 +637,7 @@ export default function AdminPage() {
         </div>
 
         <div className="card" style={{ marginTop: 24 }}>
-          <div style={{ fontWeight: 800, marginBottom: 12 }}>Audit / Error States</div>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Аудит и ошибки</div>
           <div style={{ display: "grid", gap: 12 }}>
             {auditLogs.slice(0, 16).map((log) => (
               <div key={String(log.id)} className="card" style={{ padding: 14 }}>

@@ -264,7 +264,7 @@ export default function ChatPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: "Canvas from chat",
+        title: "Канвас из чата",
         content,
         projectId: selectedProjectId || undefined
       })
@@ -273,7 +273,7 @@ export default function ChatPage() {
     if (response.ok) {
       setSplitCanvas(payload.data.canvas);
       setRollbackVersion("");
-      setCanvasStatus("Ready");
+      setCanvasStatus("Готово");
     }
   }
 
@@ -452,9 +452,9 @@ export default function ChatPage() {
                   <div className="muted" style={{ marginTop: 6 }}>{new Date(chat.updatedAt).toLocaleString("ru-RU")}</div>
                 </button>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <button className="button-secondary" type="button" onClick={() => { const title = prompt("Новое имя чата", chat.title); if (title) void patchChat(chat.id, { title }); }}>Rename</button>
-                  <button className="button-secondary" type="button" onClick={() => void patchChat(chat.id, { isPinned: !chat.isPinned })}>{chat.isPinned ? "Unpin" : "Pin"}</button>
-                  <button className="button-ghost" type="button" onClick={() => void deleteChat(chat.id)}>Delete</button>
+                  <button className="button-secondary" type="button" onClick={() => { const title = prompt("Новое имя чата", chat.title); if (title) void patchChat(chat.id, { title }); }}>Переименовать</button>
+                  <button className="button-secondary" type="button" onClick={() => void patchChat(chat.id, { isPinned: !chat.isPinned })}>{chat.isPinned ? "Открепить" : "Закрепить"}</button>
+                  <button className="button-ghost" type="button" onClick={() => void deleteChat(chat.id)}>Удалить</button>
                 </div>
               </div>
             ))}
@@ -468,11 +468,11 @@ export default function ChatPage() {
                   <div dangerouslySetInnerHTML={{ __html: renderMessageHtml(message.content) }} />
                   {message.attachments?.length ? <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>Вложения: {message.attachments.map((attachment) => attachment.originalName).join(", ")}</div> : null}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                    <button className="button-secondary" type="button" onClick={() => void navigator.clipboard.writeText(message.content)}>Copy</button>
-                    {message.role === "user" ? <button className="button-secondary" type="button" onClick={() => setInput(message.content)}>Edit & resend</button> : null}
-                    {message.role === "assistant" ? <button className="button-secondary" type="button" onClick={() => void createCanvasFromMessage(message.content)}>Open in canvas</button> : null}
-                    {message.role === "assistant" ? <button className="button-secondary" type="button" onClick={() => void createDocumentFromMessage(message.content)}>Create document</button> : null}
-                    {message.role === "assistant" && index >= 1 ? <button className="button-secondary" type="button" onClick={(event) => void onSubmit(event as unknown as FormEvent<HTMLFormElement>, messages[index - 1]?.content || "")}>Regenerate</button> : null}
+                    <button className="button-secondary" type="button" onClick={() => void navigator.clipboard.writeText(message.content)}>Скопировать</button>
+                    {message.role === "user" ? <button className="button-secondary" type="button" onClick={() => setInput(message.content)}>Изменить и отправить</button> : null}
+                    {message.role === "assistant" ? <button className="button-secondary" type="button" onClick={() => void createCanvasFromMessage(message.content)}>Открыть в канвасе</button> : null}
+                    {message.role === "assistant" ? <button className="button-secondary" type="button" onClick={() => void createDocumentFromMessage(message.content)}>Создать документ</button> : null}
+                    {message.role === "assistant" && index >= 1 ? <button className="button-secondary" type="button" onClick={(event) => void onSubmit(event as unknown as FormEvent<HTMLFormElement>, messages[index - 1]?.content || "")}>Повторить ответ</button> : null}
                   </div>
                 </article>
               ))}
@@ -517,14 +517,14 @@ export default function ChatPage() {
             </div>
             <label className="card" style={{ padding: 14, display: "flex", gap: 10, alignItems: "center" }}>
               <input type="checkbox" checked={useProjectContext} onChange={(event) => setUseProjectContext(event.target.checked)} />
-              <span>Project context</span>
+              <span>Контекст проекта</span>
             </label>
             <label className="card" style={{ padding: 14, display: "flex", gap: 10, alignItems: "center" }}>
               <input type="checkbox" checked={useWebSearch} onChange={(event) => setUseWebSearch(event.target.checked)} />
-              <span>Web search</span>
+              <span>Поиск по веб-источникам</span>
             </label>
             <div className="card" style={{ padding: 14 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Tool events</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>События инструментов</div>
               <div style={{ display: "grid", gap: 8 }}>
                 {toolEvents.map((event) => (
                   <div key={event.id} className="card" style={{ padding: 10 }}>
@@ -533,14 +533,14 @@ export default function ChatPage() {
                     {event.output ? <pre style={{ whiteSpace: "pre-wrap", overflow: "auto", marginTop: 8 }}>{JSON.stringify(event.output, null, 2)}</pre> : null}
                   </div>
                 ))}
-                {toolEvents.length === 0 ? <div className="muted">Tool events появятся здесь.</div> : null}
+                {toolEvents.length === 0 ? <div className="muted">События инструментов появятся здесь.</div> : null}
               </div>
             </div>
             {splitCanvas ? (
               <div className="card" style={{ padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                   <div style={{ fontWeight: 700 }}>{splitCanvas.title}</div>
-                  <div className="muted">{canvasStatus || "Ready"}</div>
+                  <div className="muted">{canvasStatus || "Готово"}</div>
                 </div>
                 <textarea
                   value={splitCanvas.currentContent}
@@ -552,7 +552,7 @@ export default function ChatPage() {
                   value={canvasSelection}
                   onChange={(event) => setCanvasSelection(event.target.value)}
                   rows={4}
-                  placeholder="Selected fragment for rewrite"
+                  placeholder="Фрагмент для переписывания"
                   style={{ width: "100%", borderRadius: 14, padding: 14, background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
                 />
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

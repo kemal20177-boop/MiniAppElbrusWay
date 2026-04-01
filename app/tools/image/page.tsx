@@ -70,12 +70,12 @@ export default function ImageToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось создать image job");
+      setError(payload.error?.message || "Не удалось создать задание");
       return;
     }
 
     setActiveJobId(payload.data.job.id);
-    setStatusMessage("Job queued");
+    setStatusMessage("Задание поставлено в очередь");
     setPrompt("");
   }
 
@@ -87,10 +87,10 @@ export default function ImageToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось обновить job");
+      setError(payload.error?.message || "Не удалось обновить задание");
       return;
     }
-    setStatusMessage(action === "retry" ? "Job re-queued" : "Job cancelled");
+    setStatusMessage(action === "retry" ? "Задание поставлено в очередь повторно" : "Задание отменено");
     setActiveJobId(action === "retry" ? jobId : "");
     await loadJobs();
   }
@@ -108,7 +108,7 @@ export default function ImageToolPage() {
       }
 
       const job = payload.data.job as Job;
-      setStatusMessage(`Status: ${job.status}`);
+      setStatusMessage(`Статус: ${job.status}`);
       if (job.status === "SUCCEEDED" && job.output?.fileId) {
         const fileResponse = await fetch(`/api/files/${job.output.fileId}`);
         const filePayload = await fileResponse.json();
@@ -118,7 +118,7 @@ export default function ImageToolPage() {
         setActiveJobId("");
         await Promise.all([loadJobs(), loadFiles()]);
       } else if (job.status === "FAILED" || job.status === "CANCELLED") {
-        setError(job.errorMessage || "Image job failed");
+        setError(job.errorMessage || "Задание завершилось с ошибкой");
         setActiveJobId("");
         await loadJobs();
       }
@@ -134,17 +134,17 @@ export default function ImageToolPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
-        <div className="badge">Image</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Image Generation</h1>
+        <div className="badge">Изображения</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Генерация изображений</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Реальный image tool page поверх `ApiJob`: text-to-image, image-to-image, сохранение результата как project file и быстрые переходы в workspace.
+          Создание изображений через RouterAI: генерация по описанию, редактирование по исходной картинке и сохранение результата в файлы проекта.
         </p>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button type="button" className={mode === "text-to-image" ? "button-primary" : "button-secondary"} onClick={() => setMode("text-to-image")}>Text to image</button>
-              <button type="button" className={mode === "image-to-image" ? "button-primary" : "button-secondary"} onClick={() => setMode("image-to-image")}>Image to image</button>
+              <button type="button" className={mode === "text-to-image" ? "button-primary" : "button-secondary"} onClick={() => setMode("text-to-image")}>Текст в изображение</button>
+              <button type="button" className={mode === "image-to-image" ? "button-primary" : "button-secondary"} onClick={() => setMode("image-to-image")}>Редактирование изображения</button>
             </div>
             <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder="Опиши изображение, стиль, сцену и артефакт для проекта" className="card" style={{ padding: 14 }} />
             <div className="grid-3">
@@ -175,41 +175,41 @@ export default function ImageToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {statusMessage ? <div className="muted">{statusMessage}</div> : null}
-            <div className="muted">RouterAI image model: {capability.modelId || "not available"}</div>
+            <div className="muted">Модель RouterAI: {capability.modelId || "недоступна"}</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сгенерировать</button>
-              <a className="button-secondary" href="/files">Открыть files</a>
-              {resultFile ? <a className="button-secondary" href={`/projects/${projectId}`}>Открыть project</a> : null}
+              <a className="button-secondary" href="/files">Открыть файлы</a>
+              {resultFile ? <a className="button-secondary" href={`/projects/${projectId}`}>Открыть проект</a> : null}
             </div>
           </form>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Result</h2>
-            {resultFile?.previewUrl ? <img src={resultFile.previewUrl} alt={resultFile.originalName} style={{ width: "100%", borderRadius: 18, border: "1px solid var(--border)" }} /> : <div className="muted">Результат появится после запуска job.</div>}
+            <h2 style={{ marginTop: 0 }}>Результат</h2>
+            {resultFile?.previewUrl ? <img src={resultFile.previewUrl} alt={resultFile.originalName} style={{ width: "100%", borderRadius: 18, border: "1px solid var(--border)" }} /> : <div className="muted">Результат появится после завершения задания.</div>}
             {resultFile ? (
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                 <div>{resultFile.originalName}</div>
-                <a className="button-secondary" href="/documents">Открыть в documents</a>
+                <a className="button-secondary" href="/documents">Открыть в документах</a>
               </div>
             ) : null}
           </div>
         </div>
 
         <div className="card" style={{ marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>History</h2>
+          <h2 style={{ marginTop: 0 }}>История</h2>
           <div style={{ display: "grid", gap: 10 }}>
             {jobs.map((job) => (
               <div key={job.id} className="card" style={{ padding: 16 }}>
                 <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · попытка {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>
             ))}
-            {jobs.length === 0 ? <div className="muted">Пока нет image jobs.</div> : null}
+            {jobs.length === 0 ? <div className="muted">Пока нет заданий.</div> : null}
           </div>
         </div>
       </section>

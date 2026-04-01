@@ -95,7 +95,7 @@ export default function ProfilePage() {
     <main className="shell" style={{ padding: "18px 0 56px" }}>
       <section className="panel" style={{ padding: 28 }}>
         <div className="badge">Кабинет</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Профиль пользователя</h1>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Центр аккаунта</h1>
         <div className="grid-4" style={{ marginTop: 24 }}>
           {[
             ["Баланс", String(profile?.tokenBalance ?? "...")],
@@ -117,7 +117,7 @@ export default function ProfilePage() {
             <input value={name} onChange={(event) => setName(event.target.value)} style={fieldStyle} />
             <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сохранить</button>
-              <button className="button-ghost" type="button" onClick={() => void logout()}>Logout</button>
+              <button className="button-ghost" type="button" onClick={() => void logout()}>Выйти</button>
             </div>
             {message ? <div style={{ marginTop: 10 }}>{message}</div> : null}
           </form>

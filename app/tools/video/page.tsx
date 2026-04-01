@@ -25,10 +25,10 @@ export default function VideoToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setMessage(payload.error?.message || "Не удалось обновить video job");
+      setMessage(payload.error?.message || "Не удалось обновить задание");
       return;
     }
-    setMessage(action === "retry" ? `Video job ${jobId} поставлен в очередь повторно.` : `Video job ${jobId} отменён.`);
+    setMessage(action === "retry" ? `Задание ${jobId} поставлено в очередь повторно.` : `Задание ${jobId} отменено.`);
     setActiveJobId(action === "retry" ? jobId : "");
     await loadJobs();
   }
@@ -68,11 +68,11 @@ export default function VideoToolPage() {
     });
     const payload = await response.json();
     if (response.ok) {
-      setMessage(`Video ${mode} job поставлен в очередь: ${payload.data.job.id}`);
+      setMessage(`Задание поставлено в очередь: ${payload.data.job.id}`);
       setActiveJobId(payload.data.job.id);
       setPrompt("");
     } else {
-      setMessage(payload.error?.message || "Не удалось создать video job");
+      setMessage(payload.error?.message || "Не удалось создать задание");
     }
   }
 
@@ -89,11 +89,11 @@ export default function VideoToolPage() {
       }
       const job = payload.data.job as Job;
       if (job.status === "SUCCEEDED") {
-        setMessage(`Video job ${activeJobId} завершён.`);
+        setMessage(`Задание ${activeJobId} завершено.`);
         setActiveJobId("");
         await loadJobs();
       } else if (job.status === "FAILED" || job.status === "CANCELLED") {
-        setMessage(job.errorMessage || `Video job ${activeJobId} завершился с ошибкой.`);
+        setMessage(job.errorMessage || `Задание ${activeJobId} завершилось с ошибкой.`);
         setActiveJobId("");
         await loadJobs();
       }
@@ -105,50 +105,50 @@ export default function VideoToolPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
-        <div className="badge">Video</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Video Pipeline</h1>
+        <div className="badge">Видео</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Видео-сценарии</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Video generation включается только если live RouterAI catalog подтверждает capability. Сейчас здесь честный beta flow: storyboard, task creation и video analysis-ready artifacts.
+          Генерация видео включается только если живой каталог RouterAI подтверждает такую возможность. Иначе страница честно остаётся beta-сценарием для сторибордов, постановки задач и подготовки материалов к видео-анализу.
         </p>
-        <div className="muted" style={{ marginTop: 12 }}>Video analysis model: {capability.videoAnalysis || "not available"} · generation: {capability.generation ? "enabled" : "beta-disabled"}</div>
+        <div className="muted" style={{ marginTop: 12 }}>Модель для видео-анализа: {capability.videoAnalysis || "недоступна"} · генерация: {capability.generation ? "включена" : "beta-режим"}</div>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
             <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" className={mode === "storyboard" ? "button-primary" : "button-secondary"} onClick={() => setMode("storyboard")}>Storyboard prompt</button>
-              <button type="button" className={mode === "task" ? "button-primary" : "button-secondary"} onClick={() => setMode("task")}>Video task create</button>
+              <button type="button" className={mode === "storyboard" ? "button-primary" : "button-secondary"} onClick={() => setMode("storyboard")}>Сториборд</button>
+              <button type="button" className={mode === "task" ? "button-primary" : "button-secondary"} onClick={() => setMode("task")}>Постановка задачи</button>
             </div>
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={8} placeholder="Сценарий, визуальный ритм, камера, монтаж и expected output" className="card" style={{ padding: 14 }} />
+            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={8} placeholder="Сценарий, визуальный ритм, камера, монтаж и ожидаемый результат" className="card" style={{ padding: 14 }} />
             <div className="grid-3">
               <input type="number" min={5} max={180} value={durationSec} onChange={(event) => setDurationSec(Number(event.target.value))} className="card" style={{ padding: 14 }} />
               <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="card" style={{ padding: 14 }}>
                 <option value="">Без проекта</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
               </select>
-              <a className="button-secondary" href="/projects">Workspace</a>
+              <a className="button-secondary" href="/projects">Открыть проекты</a>
             </div>
             {message ? <div className="muted">{message}</div> : null}
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="button-primary" type="submit">Создать job</button>
-              <a className="button-secondary" href="/files">Artifacts</a>
+              <button className="button-primary" type="submit">Создать задание</button>
+              <a className="button-secondary" href="/files">Артефакты</a>
             </div>
           </form>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Statuses</h2>
+            <h2 style={{ marginTop: 0 }}>Статусы</h2>
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
                 <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · попытка {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Отменить</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>
             ))}
-              {jobs.length === 0 ? <div className="muted">Video jobs пока нет.</div> : null}
+              {jobs.length === 0 ? <div className="muted">Пока нет заданий.</div> : null}
             </div>
           </div>
         </div>

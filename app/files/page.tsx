@@ -126,24 +126,24 @@ export default function FilesPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel" onDrop={onDrop} onDragOver={(event) => event.preventDefault()}>
-        <div className="badge">Files</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Files Hub</h1>
+        <div className="badge">Файлы</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Центр файлов</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Multi-upload, drag-and-drop, preview tabs, bulk actions и attach-to-chat теперь работают поверх текущего files backend.
+          Здесь работают массовая загрузка, drag-and-drop, предпросмотр, анализ и быстрые действия для привязки файлов к чату или проекту.
         </p>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
           <label className="button-primary" style={{ cursor: "pointer" }}>
-            {uploading ? "Uploading..." : "Upload files"}
+            {uploading ? "Загрузка..." : "Загрузить файлы"}
             <input type="file" hidden multiple onChange={(event: ChangeEvent<HTMLInputElement>) => { if (event.target.files?.length) void uploadMany(event.target.files); }} />
           </label>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search files" style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по файлам" style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }} />
           <select value={kind} onChange={(event) => setKind(event.target.value)} style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-            <option value="">All kinds</option>
+            <option value="">Все типы</option>
             {["DOCUMENT", "IMAGE", "DATA", "AUDIO", "VIDEO", "OTHER"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
           </select>
-          <button className="button-secondary" type="button" onClick={() => void loadFiles()}>Apply</button>
-          <a className="button-secondary" href="/tools/vision">Vision</a>
+          <button className="button-secondary" type="button" onClick={() => void loadFiles()}>Применить</button>
+          <a className="button-secondary" href="/tools/vision">Зрение</a>
         </div>
 
         <div style={{ marginTop: 12 }} className="muted">{progressText || "Перетащи файлы на страницу для загрузки."}</div>
@@ -151,7 +151,7 @@ export default function FilesPage() {
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card" style={{ display: "grid", gap: 12 }}>
-            <h2 style={{ margin: 0 }}>Files</h2>
+            <h2 style={{ margin: 0 }}>Файлы</h2>
             {filtered.map((file) => (
               <div key={file.id} className="card" style={{ padding: 14, background: selectedFile?.id === file.id ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
                 <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -174,16 +174,16 @@ export default function FilesPage() {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {(["info", "content", "analysis", "chunks"] as const).map((entry) => (
-                    <button key={entry} className={tab === entry ? "button-primary" : "button-secondary"} type="button" onClick={() => setTab(entry)}>{entry}</button>
+                    <button key={entry} className={tab === entry ? "button-primary" : "button-secondary"} type="button" onClick={() => setTab(entry)}>{entry === "info" ? "Инфо" : entry === "content" ? "Содержимое" : entry === "analysis" ? "Анализ" : "Чанки"}</button>
                   ))}
-                  <button className="button-secondary" type="button" onClick={() => void runAnalysis(selectedFile.id)}>Analyze</button>
-                  <a className="button-secondary" href={`/tools/vision`}>Open in vision</a>
-                  <a className="button-secondary" href="/canvas">Open in canvas</a>
-                  <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selectedFile.originalName)}`}>Create doc</a>
+                  <button className="button-secondary" type="button" onClick={() => void runAnalysis(selectedFile.id)}>Проанализировать</button>
+                  <a className="button-secondary" href={`/tools/vision`}>Открыть в зрении</a>
+                  <a className="button-secondary" href="/canvas">Открыть в канвасе</a>
+                  <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selectedFile.originalName)}`}>Создать документ</a>
                 </div>
                 <div className="card" style={{ whiteSpace: "pre-wrap", maxHeight: 420, overflow: "auto" }}>
                   {tab === "info" ? JSON.stringify({ id: selectedFile.id, status: selectedFile.status, sizeBytes: selectedFile.sizeBytes, metadata: selectedFile.metadata }, null, 2) : null}
-                  {tab === "content" ? selectedFile.extractedText || "Text preview unavailable" : null}
+                  {tab === "content" ? selectedFile.extractedText || "Предпросмотр текста недоступен" : null}
                   {tab === "analysis" ? JSON.stringify(analysis || {}, null, 2) : null}
                   {tab === "chunks" ? JSON.stringify(selectedFile.chunks || [], null, 2) : null}
                 </div>
@@ -194,18 +194,18 @@ export default function FilesPage() {
 
         <div className="card" style={{ marginTop: 24 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <strong>Bulk actions</strong>
+            <strong>Групповые действия</strong>
             <select value={projectTarget} onChange={(event) => setProjectTarget(event.target.value)} style={{ minHeight: 40, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-              <option value="">Select project</option>
+              <option value="">Выбери проект</option>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
             </select>
             <select value={chatTarget} onChange={(event) => setChatTarget(event.target.value)} style={{ minHeight: 40, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-              <option value="">Select chat</option>
+              <option value="">Выбери чат</option>
               {chats.map((chat) => <option key={chat.id} value={chat.id}>{chat.title}</option>)}
             </select>
-            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("attachToChat")}>Attach to chat</button>
-            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("addToProject")}>Add to project</button>
-            <button className="button-ghost" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("delete")}>Delete</button>
+            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("attachToChat")}>Прикрепить к чату</button>
+            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("addToProject")}>Добавить в проект</button>
+            <button className="button-ghost" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("delete")}>Удалить</button>
           </div>
         </div>
       </section>
