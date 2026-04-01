@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const payload = createChatSchema.parse(body);
-    const chat = await createChatForUser(user.id, payload.model, payload.title || "Новый чат");
+    const chat = await createChatForUser(user.id, payload.model, payload.title || "Новый чат", payload.projectId);
     return NextResponse.json({ ok: true, chat });
   } catch (error) {
     return NextResponse.json({ ok: false, error: "CHAT_CREATE_FAILED", message: (error as Error).message }, { status: 400 });

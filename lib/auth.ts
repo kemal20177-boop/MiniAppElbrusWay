@@ -1,3 +1,4 @@
+import "server-only";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
@@ -59,6 +60,15 @@ export async function getCurrentUserFromRequest(request: NextRequest) {
   const token = request.cookies.get(sessionCookieName)?.value;
   const payload = await getSessionByToken(token);
   return payload?.user || null;
+}
+
+export async function requireCurrentUser(request: NextRequest) {
+  const user = await getCurrentUserFromRequest(request);
+  if (!user) {
+    throw new Error("UNAUTHORIZED");
+  }
+
+  return user;
 }
 
 export async function getCurrentUserFromCookies() {

@@ -35,6 +35,66 @@ enum ReferralRewardStatus {
   CANCELLED
 }
 
+enum ProjectMemberRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum FileStatus {
+  UPLOADING
+  READY
+  FAILED
+  DELETED
+}
+
+enum FileKind {
+  DOCUMENT
+  IMAGE
+  DATA
+  AUDIO
+  VIDEO
+  OTHER
+}
+
+enum CanvasKind {
+  TEXT
+  MARKDOWN
+  CODE
+  JSON
+  HTML
+  SQL
+}
+
+enum DocumentStatus {
+  DRAFT
+  READY
+  ARCHIVED
+  DELETED
+}
+
+enum DocumentExportFormat {
+  PDF
+  DOCX
+  PPTX
+  MD
+  TXT
+}
+
+enum SearchDepth {
+  SHORT
+  STANDARD
+  DEEP
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 model User {
   id                            String           @id @default(cuid())
   email                         String           @unique
@@ -64,20 +124,53 @@ model User {
   promoCodeUsages                PromoCodeUsage[]
   referralRewardsAsReferrer      ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardsAsReferee       ReferralReward[] @relation("ReferralRewardReferee")
+  projects                       Project[]        @relation("ProjectOwner")
+  projectMembers                 ProjectMember[]
+  projectInstructions            ProjectInstruction[]
+  files                          UserFile[]
+  projectFiles                   ProjectFile[]
+  projectChatLinks               ProjectChatLink[]
+  documents                      Document[]
+  documentVersions               DocumentVersion[]
+  documentExports                DocumentExport[]
+  projectDocumentLinks           ProjectDocumentLink[]
+  canvasDocuments                CanvasDocument[]
+  canvasVersions                 CanvasVersion[]
+  chatAttachments                ChatAttachment[]
+  chatToolCalls                  ChatToolCall[]
+  searchSessions                 SearchSession[]
+  searchSources                  SearchSource[]
+  usageEvents                    UsageEvent[]
+  apiJobs                        ApiJob[]
+  auditLogsAuthored              AuditLog[]       @relation("AuditLogActor")
+  auditLogsTargeted              AuditLog[]       @relation("AuditLogTargetUser")
 }
 
 model Chat {
   id           String    @id @default(cuid())
   userId       String
+  projectId    String?
   title        String    @default("Новый чат")
   model        String
   systemPrompt String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   isArchived   Boolean   @default(false)
+  isPinned     Boolean   @default(false)
+  deletedAt    DateTime?
 
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages     Message[]
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  messages          Message[]
+  attachments       ChatAttachment[]
+  toolCalls         ChatToolCall[]
+  searchSessions    SearchSession[]
+  projectLinks      ProjectChatLink[]
+  canvasDocuments   CanvasDocument[]
+  usageEvents       UsageEvent[]
+
+  @@index([projectId, updatedAt])
+  @@index([userId, isPinned, updatedAt])
 }
 
 model Message {
@@ -91,10 +184,15 @@ model Message {
   completionTokens Int      @default(0)
   totalTokens      Int      @default(0)
   costRub          Float    @default(0)
+  mode             String   @default("standard")
+  editedAt         DateTime?
   createdAt        DateTime @default(now())
 
-  chat             Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat             Chat               @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments      ChatAttachment[]
+  toolCalls        ChatToolCall[]
+  usageEvents      UsageEvent[]
 
   @@index([userId, createdAt])
   @@index([chatId, createdAt])
@@ -254,4 +352,405 @@ model ReferralReward {
 
   @@index([referrerId, createdAt])
   @@index([refereeId, createdAt])
+}
+
+model Project {
+  id            String                @id @default(cuid())
+  ownerId       String
+  title         String
+  slug          String?
+  description   String?
+  systemPrompt  String?
+  color         String?
+  icon          String?
+  isArchived    Boolean               @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  owner         User                  @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members       ProjectMember[]
+  instructions  ProjectInstruction[]
+  chats         Chat[]
+  files         ProjectFile[]
+  chatLinks     ProjectChatLink[]
+  documents     ProjectDocumentLink[]
+  canvasDocs    CanvasDocument[]
+  searchSessions SearchSession[]
+  usageEvents   UsageEvent[]
+  apiJobs       ApiJob[]
+
+  @@index([ownerId, createdAt])
+  @@index([ownerId, updatedAt])
+  @@unique([ownerId, slug])
+}
+
+model ProjectMember {
+  id         String            @id @default(cuid())
+  projectId  String
+  userId     String
+  role       ProjectMemberRole @default(EDITOR)
+  createdAt  DateTime          @default(now())
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, createdAt])
+}
+
+model ProjectInstruction {
+  id          String    @id @default(cuid())
+  projectId   String
+  userId      String
+  title       String
+  content     String    @db.Text
+  isEnabled   Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+  @@index([userId, createdAt])
+}
+
+model UserFile {
+  id             String      @id @default(cuid())
+  userId         String
+  storageKey     String      @unique
+  bucket         String?
+  originalName   String
+  extension      String?
+  mimeType       String
+  kind           FileKind    @default(OTHER)
+  status         FileStatus  @default(UPLOADING)
+  sizeBytes      Int
+  sha256         String?
+  extractedText  String?     @db.Text
+  previewUrl     String?
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks         FileChunk[]
+  projectFiles   ProjectFile[]
+  chatAttachments ChatAttachment[]
+  documents      Document[]
+  canvasDocs     CanvasDocument[]
+  searchSources  SearchSource[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+}
+
+model FileChunk {
+  id             String    @id @default(cuid())
+  fileId         String
+  chunkIndex     Int
+  content        String    @db.Text
+  tokenCount     Int       @default(0)
+  embeddingModel String?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  file           UserFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, chunkIndex])
+  @@index([fileId, createdAt])
+}
+
+model ProjectFile {
+  id          String    @id @default(cuid())
+  projectId   String
+  fileId      String
+  userId      String
+  createdAt   DateTime  @default(now())
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  file        UserFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fileId])
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model ProjectChatLink {
+  id          String    @id @default(cuid())
+  projectId   String
+  chatId      String
+  userId      String
+  createdAt   DateTime  @default(now())
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, chatId])
+  @@index([userId, createdAt])
+}
+
+model Document {
+  id            String               @id @default(cuid())
+  userId        String
+  sourceFileId  String?
+  title         String
+  templateKey   String?
+  status        DocumentStatus       @default(DRAFT)
+  source        Json
+  summary       String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deletedAt     DateTime?
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceFile    UserFile?            @relation(fields: [sourceFileId], references: [id], onDelete: SetNull)
+  versions      DocumentVersion[]
+  exports       DocumentExport[]
+  projectLinks  ProjectDocumentLink[]
+
+  @@index([userId, createdAt])
+  @@index([userId, status, updatedAt])
+}
+
+model DocumentVersion {
+  id            String    @id @default(cuid())
+  documentId    String
+  userId        String
+  version       Int
+  title         String
+  source        Json
+  changeSummary String?
+  createdAt     DateTime  @default(now())
+
+  document      Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([userId, createdAt])
+}
+
+model DocumentExport {
+  id            String               @id @default(cuid())
+  documentId    String
+  userId        String
+  format        DocumentExportFormat
+  storageKey    String
+  fileSizeBytes Int?
+  createdAt     DateTime             @default(now())
+
+  document      Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ProjectDocumentLink {
+  id          String    @id @default(cuid())
+  projectId   String
+  documentId  String
+  userId      String
+  createdAt   DateTime  @default(now())
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, documentId])
+  @@index([userId, createdAt])
+}
+
+model CanvasDocument {
+  id            String      @id @default(cuid())
+  userId        String
+  projectId     String?
+  sourceChatId  String?
+  sourceFileId  String?
+  title         String
+  kind          CanvasKind  @default(MARKDOWN)
+  language      String?
+  currentContent String     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sourceChat    Chat?       @relation(fields: [sourceChatId], references: [id], onDelete: SetNull)
+  sourceFile    UserFile?   @relation(fields: [sourceFileId], references: [id], onDelete: SetNull)
+  versions      CanvasVersion[]
+
+  @@index([userId, createdAt])
+  @@index([projectId, updatedAt])
+}
+
+model CanvasVersion {
+  id            String          @id @default(cuid())
+  canvasId      String
+  userId        String
+  version       Int
+  content       String          @db.Text
+  selectionJson Json?
+  prompt        String?
+  createdAt     DateTime        @default(now())
+
+  canvas        CanvasDocument  @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([canvasId, version])
+  @@index([userId, createdAt])
+}
+
+model ChatAttachment {
+  id          String    @id @default(cuid())
+  chatId       String
+  messageId    String?
+  userId       String
+  fileId       String
+  createdAt    DateTime  @default(now())
+
+  chat         Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  message      Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file         UserFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@index([messageId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model ChatToolCall {
+  id          String    @id @default(cuid())
+  chatId       String
+  messageId    String?
+  userId       String
+  toolName     String
+  toolStatus   String
+  input        Json?
+  output       Json?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  chat         Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  message      Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SearchSession {
+  id             String       @id @default(cuid())
+  userId         String
+  projectId      String?
+  chatId         String?
+  query          String
+  depth          SearchDepth  @default(STANDARD)
+  latestOnly     Boolean      @default(false)
+  answer         String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  chat           Chat?        @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  sources        SearchSource[]
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model SearchSource {
+  id             String         @id @default(cuid())
+  searchSessionId String
+  userId         String
+  fileId         String?
+  title          String
+  url            String
+  domain         String?
+  snippet        String?        @db.Text
+  position       Int            @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime       @default(now())
+
+  searchSession  SearchSession  @relation(fields: [searchSessionId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file           UserFile?      @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([searchSessionId, position])
+  @@index([userId, createdAt])
+}
+
+model UsageEvent {
+  id             String    @id @default(cuid())
+  userId         String
+  projectId      String?
+  chatId         String?
+  messageId      String?
+  model          String?
+  eventType      String
+  promptTokens   Int       @default(0)
+  completionTokens Int     @default(0)
+  totalTokens    Int       @default(0)
+  costRub        Float     @default(0)
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  chat           Chat?     @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  message        Message?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([model, createdAt])
+}
+
+model ApiJob {
+  id             String     @id @default(cuid())
+  userId         String?
+  projectId      String?
+  jobType        String
+  status         JobStatus  @default(PENDING)
+  input          Json?
+  output         Json?
+  errorMessage   String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user           User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project        Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id             String    @id @default(cuid())
+  actorUserId    String?
+  targetUserId   String?
+  action         String
+  entityType     String?
+  entityId       String?
+  ipAddress      String?
+  userAgent      String?
+  details        Json?
+  createdAt      DateTime  @default(now())
+
+  actorUser      User?     @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  targetUser     User?     @relation("AuditLogTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action, createdAt])
 }

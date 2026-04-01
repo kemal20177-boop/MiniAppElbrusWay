@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { enforceRouterPolicy, getAllowedModelConfig } from "@/lib/routerai-policy";
 import { isPlanAllowed } from "@/lib/routerai-policy";
 import { syncRemoteModelConfigs } from "@/lib/model-config";
-import { Plan } from "@prisma/client";
+import { Plan, Prisma } from "@prisma/client";
 import {
   createPlategaTransaction,
   fetchPlategaTransactionStatus,
@@ -28,6 +28,26 @@ import {
   resolveBillingPlanSelection,
   resolvePromoCode
 } from "@/lib/billing";
+import { attachFilesToChat, buildAttachmentContext } from "@/lib/files";
+import { runWebSearch } from "@/lib/search";
+
+type ChatToolSelection = {
+  webSearch?: boolean;
+  projectContext?: boolean;
+  fileAnalysis?: boolean;
+};
+
+type PreparedChatContext = {
+  chatId?: string;
+  projectId?: string;
+  messages: Array<{ role: "user" | "assistant" | "system" | "developer" | "tool"; content: string }>;
+  toolEvents: Array<{
+    id: string;
+    toolName: string;
+    status: string;
+    output: Record<string, unknown>;
+  }>;
+};
 
 export async function getModels(plan: Plan = Plan.FREE) {
   const [catalog] = await Promise.all([getRouterModelCatalog(), syncRemoteModelConfigs()]);
@@ -56,16 +76,57 @@ export async function ensureUserCanSpend(userId: string) {
   return user;
 }
 
-export async function createChatForUser(userId: string, model: string, title = "Новый чат") {
+async function syncChatProjectLink(params: { userId: string; chatId: string; projectId?: string | null }) {
+  if (!params.projectId) {
+    return;
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: params.projectId,
+      ownerId: params.userId,
+      deletedAt: null
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    throw new Error("PROJECT_NOT_FOUND");
+  }
+
+  await prisma.projectChatLink.upsert({
+    where: {
+      projectId_chatId: {
+        projectId: params.projectId,
+        chatId: params.chatId
+      }
+    },
+    update: {},
+    create: {
+      projectId: params.projectId,
+      chatId: params.chatId,
+      userId: params.userId
+    }
+  });
+}
+
+export async function createChatForUser(userId: string, model: string, title = "Новый чат", projectId?: string) {
   await ensureStore();
   const chat = await prisma.chat.create({
     data: {
       userId,
       title,
       model,
+      projectId: projectId || null,
       systemPrompt: null,
       isArchived: false
     }
+  });
+
+  await syncChatProjectLink({
+    userId,
+    chatId: chat.id,
+    projectId
   });
 
   return {
@@ -84,11 +145,287 @@ function getLastUserMessage(messages: Array<{ role: string; content: string }>) 
   return [...messages].reverse().find((entry) => entry.role === "user");
 }
 
-export async function persistChatCompletion(params: {
+async function resolveChatOwnership(params: {
   userId: string;
   chatId?: string;
   model: string;
   messages: Array<{ role: string; content: string }>;
+  projectId?: string;
+}) {
+  if (params.chatId) {
+    const existing = await prisma.chat.findFirst({
+      where: {
+        id: params.chatId,
+        userId: params.userId
+      }
+    });
+
+    if (!existing) {
+      throw new Error("CHAT_NOT_FOUND");
+    }
+
+    if (params.projectId && existing.projectId !== params.projectId) {
+      await prisma.chat.update({
+        where: { id: existing.id },
+        data: { projectId: params.projectId }
+      });
+      await syncChatProjectLink({
+        userId: params.userId,
+        chatId: existing.id,
+        projectId: params.projectId
+      });
+    }
+
+    return {
+      id: existing.id,
+      projectId: params.projectId || existing.projectId || undefined
+    };
+  }
+
+  const firstUserMessage = getLastUserMessage(params.messages)?.content || "Новый чат";
+  const created = await createChatForUser(
+    params.userId,
+    params.model,
+    firstUserMessage.slice(0, 48),
+    params.projectId
+  );
+
+  return {
+    id: created.id,
+    projectId: params.projectId
+  };
+}
+
+async function buildProjectContext(userId: string, projectId?: string) {
+  if (!projectId) {
+    return null;
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      ownerId: userId,
+      deletedAt: null
+    },
+    include: {
+      instructions: {
+        where: { isEnabled: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 8
+      },
+      files: {
+        take: 6,
+        orderBy: { createdAt: "desc" },
+        include: {
+          file: {
+            select: {
+              id: true,
+              originalName: true,
+              kind: true,
+              extractedText: true
+            }
+          }
+        }
+      },
+      documents: {
+        take: 4,
+        orderBy: { createdAt: "desc" },
+        include: {
+          document: {
+            select: {
+              id: true,
+              title: true,
+              summary: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!project) {
+    throw new Error("PROJECT_NOT_FOUND");
+  }
+
+  const instructions = project.instructions.map((entry) => `- ${entry.title}: ${entry.content}`).join("\n");
+  const files = project.files
+    .map((entry) => {
+      const excerpt = entry.file.extractedText?.slice(0, 500) || "";
+      return `- ${entry.file.originalName} (${entry.file.kind})${excerpt ? `: ${excerpt}` : ""}`;
+    })
+    .join("\n");
+  const documents = project.documents
+    .map((entry) => `- ${entry.document.title}${entry.document.summary ? `: ${entry.document.summary}` : ""}`)
+    .join("\n");
+
+  return {
+    project,
+    summary: [
+      `Проект: ${project.title}`,
+      project.description ? `Описание: ${project.description}` : null,
+      instructions ? `Инструкции:\n${instructions}` : null,
+      files ? `Файлы:\n${files}` : null,
+      documents ? `Документы:\n${documents}` : null
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+  };
+}
+
+async function createToolEvent(params: {
+  chatId: string;
+  userId: string;
+  toolName: string;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  errorMessage?: string;
+}) {
+  const toolCall = await prisma.chatToolCall.create({
+    data: {
+      chatId: params.chatId,
+      userId: params.userId,
+      toolName: params.toolName,
+      toolStatus: params.errorMessage ? "FAILED" : "SUCCEEDED",
+      input: (params.input || undefined) as Prisma.InputJsonValue | undefined,
+      output: (params.output || undefined) as Prisma.InputJsonValue | undefined,
+      errorMessage: params.errorMessage || null,
+      completedAt: new Date()
+    }
+  });
+
+  return {
+    id: toolCall.id,
+    toolName: toolCall.toolName,
+    status: toolCall.toolStatus,
+    output: (toolCall.output || {}) as Record<string, unknown>
+  };
+}
+
+async function prepareChatRuntimeContext(params: {
+  userId: string;
+  chatId?: string;
+  projectId?: string;
+  model: string;
+  messages: Array<{ role: "user" | "assistant" | "system" | "developer" | "tool"; content: string }>;
+  attachmentIds?: string[];
+  tools?: ChatToolSelection;
+}) {
+  const chat = await resolveChatOwnership({
+    userId: params.userId,
+    chatId: params.chatId,
+    model: params.model,
+    messages: params.messages,
+    projectId: params.projectId
+  });
+
+  const toolEvents: PreparedChatContext["toolEvents"] = [];
+  const augmentedMessages = [...params.messages];
+  const attachmentIds = params.attachmentIds || [];
+
+  if (attachmentIds.length > 0) {
+    const attachments = await buildAttachmentContext(params.userId, attachmentIds);
+    const attachmentContext = attachments
+      .map((file) => `Файл ${file.name} (${file.kind}): ${file.summary}${file.excerpt ? `\n${file.excerpt}` : ""}`)
+      .join("\n\n");
+
+    augmentedMessages.unshift({
+      role: "developer",
+      content: `Контекст вложений:\n${attachmentContext}`
+    });
+
+    toolEvents.push(
+      await createToolEvent({
+        chatId: chat.id,
+        userId: params.userId,
+        toolName: "file_context",
+        input: { attachmentIds },
+        output: {
+          files: attachments.map((file) => ({
+            id: file.id,
+            name: file.name,
+            kind: file.kind
+          }))
+        }
+      })
+    );
+  }
+
+  if (params.tools?.projectContext && chat.projectId) {
+    const projectContext = await buildProjectContext(params.userId, chat.projectId);
+    if (projectContext?.summary) {
+      augmentedMessages.unshift({
+        role: "developer",
+        content: `Контекст проекта:\n${projectContext.summary}`
+      });
+
+      toolEvents.push(
+        await createToolEvent({
+          chatId: chat.id,
+          userId: params.userId,
+          toolName: "project_context",
+          input: { projectId: chat.projectId },
+          output: {
+            projectId: chat.projectId,
+            title: projectContext.project.title
+          }
+        })
+      );
+    }
+  }
+
+  if (params.tools?.webSearch) {
+    const lastUserMessage = getLastUserMessage(params.messages);
+    if (lastUserMessage?.content) {
+      const searchSession = await runWebSearch({
+        userId: params.userId,
+        chatId: chat.id,
+        projectId: chat.projectId,
+        query: lastUserMessage.content
+      });
+      const searchContext = searchSession.sources
+        .map((source, index) => `[${index + 1}] ${source.title} — ${source.snippet || source.url}`)
+        .join("\n");
+
+      augmentedMessages.unshift({
+        role: "developer",
+        content: `Используй web search контекст и ссылайся на источники по номерам.\n${searchContext}`
+      });
+
+      toolEvents.push(
+        await createToolEvent({
+          chatId: chat.id,
+          userId: params.userId,
+          toolName: "web_search",
+          input: { query: lastUserMessage.content },
+          output: {
+            searchSessionId: searchSession.id,
+            answer: searchSession.answer,
+            sources: searchSession.sources.map((source, index) => ({
+              index: index + 1,
+              title: source.title,
+              url: source.url
+            }))
+          }
+        })
+      );
+    }
+  }
+
+  return {
+    chatId: chat.id,
+    projectId: chat.projectId,
+    messages: augmentedMessages,
+    toolEvents
+  } satisfies PreparedChatContext;
+}
+
+export async function persistChatCompletion(params: {
+  userId: string;
+  chatId?: string;
+  projectId?: string;
+  model: string;
+  messages: Array<{ role: string; content: string }>;
+  attachmentIds?: string[];
   content: string;
   promptTokens: number;
   completionTokens: number;
@@ -99,7 +436,7 @@ export async function persistChatCompletion(params: {
 
   if (!chatId) {
     const firstUserMessage = getLastUserMessage(params.messages)?.content || "Новый чат";
-    const chat = await createChatForUser(params.userId, params.model, firstUserMessage.slice(0, 48));
+    const chat = await createChatForUser(params.userId, params.model, firstUserMessage.slice(0, 48), params.projectId);
     chatId = chat.id;
   }
 
@@ -124,7 +461,7 @@ export async function persistChatCompletion(params: {
     }
 
     if (lastUserMessage) {
-      await tx.message.create({
+      const userMessage = await tx.message.create({
         data: {
           chatId: chat.id,
           userId: params.userId,
@@ -138,6 +475,15 @@ export async function persistChatCompletion(params: {
           createdAt: timestamp
         }
       });
+
+      if ((params.attachmentIds || []).length > 0) {
+        await attachFilesToChat({
+          userId: params.userId,
+          chatId: chat.id,
+          messageId: userMessage.id,
+          fileIds: params.attachmentIds || []
+        });
+      }
     }
 
     await tx.message.create({
@@ -179,9 +525,18 @@ export async function persistChatCompletion(params: {
       data: {
         updatedAt: timestamp,
         model: params.model,
+        ...(params.projectId ? { projectId: params.projectId } : {}),
         ...(lastUserMessage && chat.title === "Новый чат" ? { title: lastUserMessage.content.slice(0, 48) } : {})
       }
     });
+
+    if (params.projectId) {
+      await syncChatProjectLink({
+        userId: params.userId,
+        chatId: chat.id,
+        projectId: params.projectId
+      });
+    }
 
     return {
       chatId: chat.id,
@@ -229,15 +584,27 @@ export async function calculateChatCostRub(params: {
 export async function completeChat(params: {
   user: UserRecord;
   chatId?: string;
+  projectId?: string;
   model: string;
   messages: Array<{ role: "user" | "assistant" | "system" | "developer" | "tool"; content: string }>;
+  attachmentIds?: string[];
+  tools?: ChatToolSelection;
 }) {
+  const context = await prepareChatRuntimeContext({
+    userId: params.user.id,
+    chatId: params.chatId,
+    projectId: params.projectId,
+    model: params.model,
+    messages: params.messages,
+    attachmentIds: params.attachmentIds,
+    tools: params.tools
+  });
   const { user, modelConfig, policy } = await prepareChatCompletion({
     user: params.user,
     model: params.model,
-    messages: params.messages
+    messages: context.messages
   });
-  const completion = await createRouterCompletion(params.model, params.messages as RouterMessage[], {
+  const completion = await createRouterCompletion(params.model, context.messages as RouterMessage[], {
     maxTokens: policy.maxCompletionTokens
   });
   const content = String(completion.choices?.[0]?.message?.content || "");
@@ -253,9 +620,11 @@ export async function completeChat(params: {
   });
   return persistChatCompletion({
     userId: params.user.id,
-    chatId: params.chatId,
+    chatId: context.chatId,
+    projectId: context.projectId,
     model: params.model,
     messages: params.messages,
+    attachmentIds: params.attachmentIds,
     content,
     promptTokens,
     completionTokens,
@@ -301,6 +670,7 @@ function extractResponseText(output: Array<Record<string, unknown>> | undefined)
 export async function completeChatViaResponses(params: {
   user: UserRecord;
   chatId?: string;
+  projectId?: string;
   model: string;
   input: RouterResponsesInput;
 }) {
@@ -332,6 +702,7 @@ export async function completeChatViaResponses(params: {
   return persistChatCompletion({
     userId: params.user.id,
     chatId: params.chatId,
+    projectId: params.projectId,
     model: params.model,
     messages: inputMessages,
     content,
@@ -362,15 +733,32 @@ export async function createEmbeddings(params: {
 
 export async function createChatStream(params: {
   user: UserRecord;
+  chatId?: string;
+  projectId?: string;
   model: string;
   messages: Array<{ role: "user" | "assistant" | "system" | "developer" | "tool"; content: string }>;
+  attachmentIds?: string[];
+  tools?: ChatToolSelection;
 }) {
-  const prepared = await prepareChatCompletion(params);
-  const response = await createRouterCompletionStream(params.model, params.messages as RouterMessage[], {
+  const context = await prepareChatRuntimeContext({
+    userId: params.user.id,
+    chatId: params.chatId,
+    projectId: params.projectId,
+    model: params.model,
+    messages: params.messages,
+    attachmentIds: params.attachmentIds,
+    tools: params.tools
+  });
+  const prepared = await prepareChatCompletion({
+    user: params.user,
+    model: params.model,
+    messages: context.messages
+  });
+  const response = await createRouterCompletionStream(params.model, context.messages as RouterMessage[], {
     maxTokens: prepared.policy.maxCompletionTokens
   });
 
-  return { ...prepared, response };
+  return { ...prepared, response, chatId: context.chatId, projectId: context.projectId, toolEvents: context.toolEvents };
 }
 
 function mapPlategaStatus(status: PlategaPaymentStatus) {

@@ -1,3 +1,4 @@
+import "server-only";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { Plan, Role, type PaymentStatus } from "@prisma/client";

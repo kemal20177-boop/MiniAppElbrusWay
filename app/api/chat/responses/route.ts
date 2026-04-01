@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     const result = await completeChatViaResponses({
       user,
       chatId: payload.chatId,
+      projectId: payload.projectId,
       model: payload.model,
       input: payload.input
     });

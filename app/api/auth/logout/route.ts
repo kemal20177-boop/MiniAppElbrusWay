@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { destroySession, sessionCookieName } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(sessionCookieName)?.value;
   await destroySession(token);
+  await writeAuditLog({
+    action: "auth.logout",
+    details: {
+      hadSessionToken: Boolean(token)
+    }
+  });
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(sessionCookieName, "", {
