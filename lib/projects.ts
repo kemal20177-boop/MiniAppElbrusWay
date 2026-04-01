@@ -1,6 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
+type ProjectActivityInput = {
+  chats: Array<{ id: string; title: string; updatedAt: Date }>;
+  files: Array<{ createdAt: Date; file: { id: string; originalName: string } }>;
+  documents: Array<{ createdAt: Date; document: { id: string; title: string } }>;
+  canvasDocs: Array<{ id: string; title: string; updatedAt: Date }>;
+};
+
 function normalizeSlug(title: string, rawSlug?: string) {
   const base = (rawSlug || title)
     .toLowerCase()
@@ -13,11 +20,55 @@ function normalizeSlug(title: string, rawSlug?: string) {
   return base || null;
 }
 
-export async function listProjectsForUser(userId: string) {
+function buildProjectActivity(project: ProjectActivityInput | null) {
+  if (!project) {
+    return [];
+  }
+
+  return [
+    ...project.chats.map((chat) => ({
+      kind: "chat",
+      id: chat.id,
+      title: chat.title,
+      createdAt: chat.updatedAt
+    })),
+    ...project.files.map((entry) => ({
+      kind: "file",
+      id: entry.file.id,
+      title: entry.file.originalName,
+      createdAt: entry.createdAt
+    })),
+    ...project.documents.map((entry) => ({
+      kind: "document",
+      id: entry.document.id,
+      title: entry.document.title,
+      createdAt: entry.createdAt
+    })),
+    ...project.canvasDocs.map((canvas) => ({
+      kind: "canvas",
+      id: canvas.id,
+      title: canvas.title,
+      createdAt: canvas.updatedAt
+    }))
+  ]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .slice(0, 20);
+}
+
+export async function listProjectsForUser(userId: string, options?: { query?: string; includeArchived?: boolean }) {
   return prisma.project.findMany({
     where: {
       ownerId: userId,
-      deletedAt: null
+      deletedAt: null,
+      ...(options?.includeArchived ? {} : { isArchived: false }),
+      ...(options?.query
+        ? {
+            OR: [
+              { title: { contains: options.query, mode: "insensitive" } },
+              { description: { contains: options.query, mode: "insensitive" } }
+            ]
+          }
+        : {})
     },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     include: {
@@ -27,7 +78,8 @@ export async function listProjectsForUser(userId: string) {
           files: true,
           documents: true,
           canvasDocs: true,
-          instructions: true
+          instructions: true,
+          searchSessions: true
         }
       }
     }
@@ -67,7 +119,8 @@ export async function createProjectForUser(userId: string, input: {
           files: true,
           documents: true,
           canvasDocs: true,
-          instructions: true
+          instructions: true,
+          searchSessions: true
         }
       }
     }
@@ -75,7 +128,7 @@ export async function createProjectForUser(userId: string, input: {
 }
 
 export async function getProjectForUser(userId: string, projectId: string) {
-  return prisma.project.findFirst({
+  const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       ownerId: userId,
@@ -110,6 +163,16 @@ export async function getProjectForUser(userId: string, projectId: string) {
         orderBy: { updatedAt: "desc" },
         take: 8
       },
+      searchSessions: {
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: {
+          sources: {
+            orderBy: { position: "asc" },
+            take: 3
+          }
+        }
+      },
       _count: {
         select: {
           chats: true,
@@ -122,6 +185,25 @@ export async function getProjectForUser(userId: string, projectId: string) {
       }
     }
   });
+
+  if (!project) {
+    return null;
+  }
+
+  return {
+    ...project,
+    overview: {
+      counters: {
+        chats: project._count.chats,
+        files: project._count.files,
+        documents: project._count.documents,
+        canvas: project._count.canvasDocs,
+        instructions: project._count.instructions,
+        searchSessions: project._count.searchSessions
+      },
+      activity: buildProjectActivity(project)
+    }
+  };
 }
 
 export async function updateProjectForUser(userId: string, projectId: string, input: {
@@ -166,7 +248,8 @@ export async function updateProjectForUser(userId: string, projectId: string, in
           files: true,
           documents: true,
           canvasDocs: true,
-          instructions: true
+          instructions: true,
+          searchSessions: true
         }
       }
     }

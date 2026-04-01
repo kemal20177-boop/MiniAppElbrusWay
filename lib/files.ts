@@ -7,6 +7,15 @@ import { prisma } from "@/lib/prisma";
 
 const DEFAULT_MAX_UPLOAD_MB = 25;
 const DEFAULT_STORAGE_ROOT = path.join(process.cwd(), "storage", "uploads");
+const allowedMimePrefixes = ["image/", "audio/", "video/", "text/"];
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "application/json",
+  "application/xml",
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+]);
 
 function getStorageRoot() {
   return process.env.UPLOAD_STORAGE_DIR?.trim() || DEFAULT_STORAGE_ROOT;
@@ -16,6 +25,11 @@ function getMaxUploadBytes() {
   const raw = Number(process.env.MAX_UPLOAD_SIZE_MB || DEFAULT_MAX_UPLOAD_MB);
   const sizeMb = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_UPLOAD_MB;
   return sizeMb * 1024 * 1024;
+}
+
+function isMimeAllowed(mimeType: string) {
+  const mime = mimeType.trim().toLowerCase();
+  return allowedMimePrefixes.some((prefix) => mime.startsWith(prefix)) || allowedMimeTypes.has(mime);
 }
 
 async function ensureStorageRoot() {
@@ -122,6 +136,24 @@ function buildMetadata(params: {
   };
 }
 
+function buildFilePreview(file: {
+  kind: FileKind;
+  originalName: string;
+  extractedText: string | null;
+  metadata: Prisma.JsonValue | null;
+}) {
+  const metadata = (file.metadata || {}) as Record<string, unknown>;
+
+  return {
+    info: {
+      originalName: file.originalName,
+      kind: file.kind,
+      metadata
+    },
+    previewText: file.extractedText?.slice(0, 5000) || null
+  };
+}
+
 function chunkText(text: string) {
   const chunks: string[] = [];
   const paragraphs = text.split(/\n{2,}/).map((entry) => entry.trim()).filter(Boolean);
@@ -223,10 +255,23 @@ async function upsertProjectLink(userId: string, projectId: string | undefined, 
 }
 
 export async function listFilesForUser(userId: string, params?: { projectId?: string }) {
+  const query = (params as { query?: string; kind?: FileKind; status?: FileStatus } | undefined)?.query;
+  const kind = (params as { kind?: FileKind } | undefined)?.kind;
+  const status = (params as { status?: FileStatus } | undefined)?.status;
   return prisma.userFile.findMany({
     where: {
       userId,
       deletedAt: null,
+      ...(query
+        ? {
+            OR: [
+              { originalName: { contains: query, mode: "insensitive" } },
+              { extractedText: { contains: query, mode: "insensitive" } }
+            ]
+          }
+        : {}),
+      ...(kind ? { kind } : {}),
+      ...(status ? { status } : {}),
       ...(params?.projectId
         ? {
             projectFiles: {
@@ -287,6 +332,110 @@ export async function getFileForUser(userId: string, fileId: string) {
   });
 }
 
+async function persistFileRecord(params: {
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  bytes: Buffer;
+  projectId?: string;
+}) {
+  await ensureStorageRoot();
+  const extension = inferExtension(params.fileName);
+  const kind = inferFileKind({
+    mimeType: params.mimeType,
+    extension
+  });
+  const sha256 = createHash("sha256").update(params.bytes).digest("hex");
+  const existing = await prisma.userFile.findFirst({
+    where: {
+      userId: params.userId,
+      sha256,
+      sizeBytes: params.bytes.byteLength,
+      deletedAt: null
+    }
+  });
+
+  if (existing) {
+    await upsertProjectLink(params.userId, params.projectId, existing.id);
+    return existing;
+  }
+
+  const today = new Date();
+  const storageKey = path.join(
+    String(today.getUTCFullYear()),
+    String(today.getUTCMonth() + 1).padStart(2, "0"),
+    `${randomUUID()}-${toSafeSegment(params.fileName)}`
+  );
+  const absolutePath = path.join(getStorageRoot(), storageKey);
+
+  const created = await prisma.userFile.create({
+    data: {
+      userId: params.userId,
+      storageKey,
+      originalName: params.fileName,
+      extension,
+      mimeType: params.mimeType,
+      kind,
+      status: FileStatus.UPLOADING,
+      sizeBytes: params.bytes.byteLength,
+      sha256,
+      previewUrl: "/api/files/pending/content"
+    }
+  });
+
+  try {
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, params.bytes);
+    const extractedText = extractTextFromBuffer(params.bytes, params.mimeType, extension);
+    const metadata = buildMetadata({
+      mimeType: params.mimeType,
+      extension,
+      kind,
+      extractedText,
+      sizeBytes: params.bytes.byteLength
+    });
+
+    const updated = await prisma.userFile.update({
+      where: { id: created.id },
+      data: {
+        status: FileStatus.READY,
+        extractedText,
+        metadata,
+        previewUrl: `/api/files/${created.id}/content?preview=1`
+      }
+    });
+
+    if (extractedText) {
+      const chunks = chunkText(extractedText);
+      if (chunks.length > 0) {
+        await prisma.fileChunk.createMany({
+          data: chunks.map((content, index) => ({
+            fileId: created.id,
+            chunkIndex: index,
+            content,
+            tokenCount: Math.max(1, Math.ceil(content.length / 4))
+          })),
+          skipDuplicates: true
+        });
+      }
+    }
+
+    await upsertProjectLink(params.userId, params.projectId, created.id);
+    return updated;
+  } catch (error) {
+    await prisma.userFile.update({
+      where: { id: created.id },
+      data: {
+        status: FileStatus.FAILED,
+        metadata: {
+          error: error instanceof Error ? error.message : "UPLOAD_FAILED"
+        }
+      }
+    });
+    throw error;
+  }
+}
+
 export async function getFileBufferForUser(userId: string, fileId: string) {
   const file = await prisma.userFile.findFirst({
     where: {
@@ -323,91 +472,122 @@ export async function uploadUserFile(params: {
   if (params.file.size > getMaxUploadBytes()) {
     throw new Error("FILE_TOO_LARGE");
   }
-
-  await ensureStorageRoot();
-
-  const extension = inferExtension(params.file.name);
-  const kind = inferFileKind({
-    mimeType: params.file.type || "application/octet-stream",
-    extension
-  });
-  const bytes = Buffer.from(await params.file.arrayBuffer());
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const today = new Date();
-  const storageKey = path.join(
-    String(today.getUTCFullYear()),
-    String(today.getUTCMonth() + 1).padStart(2, "0"),
-    `${randomUUID()}-${toSafeSegment(params.file.name)}`
-  );
-  const absolutePath = path.join(getStorageRoot(), storageKey);
-
-  const created = await prisma.userFile.create({
-    data: {
-      userId: params.userId,
-      storageKey,
-      originalName: params.file.name,
-      extension,
-      mimeType: params.file.type || "application/octet-stream",
-      kind,
-      status: FileStatus.UPLOADING,
-      sizeBytes: bytes.byteLength,
-      sha256,
-      previewUrl: "/api/files/pending/content"
-    }
-  });
-
-  try {
-    await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, bytes);
-
-    const extractedText = extractTextFromBuffer(bytes, created.mimeType, extension);
-    const metadata = buildMetadata({
-      mimeType: created.mimeType,
-      extension,
-      kind,
-      extractedText,
-      sizeBytes: bytes.byteLength
-    });
-
-    const updated = await prisma.userFile.update({
-      where: { id: created.id },
-      data: {
-        status: FileStatus.READY,
-        extractedText,
-        metadata,
-        previewUrl: `/api/files/${created.id}/content`
-      }
-    });
-
-    if (extractedText) {
-      const chunks = chunkText(extractedText);
-      if (chunks.length > 0) {
-        await prisma.fileChunk.createMany({
-          data: chunks.map((content, index) => ({
-            fileId: created.id,
-            chunkIndex: index,
-            content,
-            tokenCount: Math.max(1, Math.ceil(content.length / 4))
-          })),
-          skipDuplicates: true
-        });
-      }
-    }
-
-    await upsertProjectLink(params.userId, params.projectId, created.id);
-    return updated;
-  } catch (error) {
-    await prisma.userFile.update({
-      where: { id: created.id },
-      data: {
-        status: FileStatus.FAILED,
-        metadata: {
-          error: error instanceof Error ? error.message : "UPLOAD_FAILED"
-        }
-      }
-    });
-    throw error;
+  const mimeType = params.file.type || "application/octet-stream";
+  if (!isMimeAllowed(mimeType)) {
+    throw new Error("FILE_TYPE_NOT_ALLOWED");
   }
+
+  return persistFileRecord({
+    userId: params.userId,
+    fileName: params.file.name,
+    mimeType,
+    bytes: Buffer.from(await params.file.arrayBuffer()),
+    projectId: params.projectId
+  });
+}
+
+export async function uploadManyUserFiles(params: {
+  userId: string;
+  files: File[];
+  projectId?: string;
+}) {
+  const uploaded = [];
+  const errors: Array<{ fileName: string; message: string }> = [];
+
+  for (const file of params.files) {
+    try {
+      uploaded.push(await uploadUserFile({ userId: params.userId, file, projectId: params.projectId }));
+    } catch (error) {
+      errors.push({
+        fileName: file.name,
+        message: error instanceof Error ? error.message : "UPLOAD_FAILED"
+      });
+    }
+  }
+
+  return { uploaded, errors };
+}
+
+export async function createArtifactFileForUser(params: {
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  content: string | Buffer;
+  projectId?: string;
+}) {
+  const bytes = Buffer.isBuffer(params.content) ? params.content : Buffer.from(params.content, "utf8");
+  return persistFileRecord({
+    userId: params.userId,
+    fileName: params.fileName,
+    mimeType: params.mimeType,
+    bytes,
+    projectId: params.projectId
+  });
+}
+
+function analyzeDocumentFile(file: {
+  originalName: string;
+  extractedText: string | null;
+  sizeBytes: number;
+}) {
+  const text = file.extractedText?.trim() || "";
+  const paragraphs = text.split(/\n{2,}/).filter(Boolean);
+  const headings = text.split(/\n/).filter((line) => /^#{1,6}\s+/.test(line) || /^[A-ZА-Я0-9][^.!?]{0,80}$/.test(line));
+
+  return {
+    mode: "document",
+    summary: text.slice(0, 700) || `Файл ${file.originalName} загружен.`,
+    keyPoints: paragraphs.slice(0, 5),
+    structure: headings.slice(0, 12),
+    sizeBytes: file.sizeBytes
+  };
+}
+
+function analyzeDataFile(file: {
+  originalName: string;
+  extractedText: string | null;
+}) {
+  const text = file.extractedText?.trim() || "";
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  const header = lines[0]?.split(/[,\t;|]/).map((cell) => cell.trim()).filter(Boolean) || [];
+
+  return {
+    mode: "data",
+    summary: text.slice(0, 500) || `Файл ${file.originalName} загружен.`,
+    schema: header,
+    rowsPreview: lines.slice(1, 6),
+    rowCountEstimate: Math.max(0, lines.length - 1)
+  };
+}
+
+function analyzeImageFile(file: {
+  originalName: string;
+  metadata: Prisma.JsonValue | null;
+}) {
+  return {
+    mode: "vision",
+    summary: `Изображение ${file.originalName} готово к vision analysis.`,
+    tasks: ["ocr", "describe", "screenshot-analysis", "chart-analysis", "ask"],
+    metadata: file.metadata
+  };
+}
+
+function analyzeAudioFile(file: { originalName: string; mimeType: string; sizeBytes: number }) {
+  return {
+    mode: "audio",
+    summary: `Аудиофайл ${file.originalName} готов к transcription pipeline.`,
+    mimeType: file.mimeType,
+    sizeBytes: file.sizeBytes
+  };
+}
+
+function analyzeVideoFile(file: { originalName: string; mimeType: string; sizeBytes: number }) {
+  return {
+    mode: "video",
+    summary: `Видео ${file.originalName} готово к metadata/stub pipeline.`,
+    mimeType: file.mimeType,
+    sizeBytes: file.sizeBytes
+  };
 }
 
 export async function analyzeFileForUser(userId: string, fileId: string) {
@@ -423,7 +603,18 @@ export async function analyzeFileForUser(userId: string, fileId: string) {
     throw new Error("FILE_NOT_FOUND");
   }
 
-  const analysis = summarizeFile(file);
+  const analysis =
+    file.kind === FileKind.DOCUMENT
+      ? analyzeDocumentFile(file)
+      : file.kind === FileKind.DATA
+        ? analyzeDataFile(file)
+        : file.kind === FileKind.IMAGE
+          ? analyzeImageFile(file)
+          : file.kind === FileKind.AUDIO
+            ? analyzeAudioFile(file)
+            : file.kind === FileKind.VIDEO
+              ? analyzeVideoFile(file)
+              : summarizeFile(file);
   await prisma.userFile.update({
     where: { id: file.id },
     data: {
@@ -576,5 +767,17 @@ export async function getFileStatsForUser(userId: string) {
   return {
     count,
     totalBytes: Number(sizeAggregate._sum.sizeBytes || 0)
+  };
+}
+
+export async function buildFilePreviewForUser(userId: string, fileId: string) {
+  const file = await getFileForUser(userId, fileId);
+  if (!file) {
+    throw new Error("FILE_NOT_FOUND");
+  }
+
+  return {
+    ...buildFilePreview(file),
+    chunks: file.chunks.slice(0, 12)
   };
 }

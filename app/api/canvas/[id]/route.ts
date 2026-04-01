@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
-import { getCanvasForUser, updateCanvasForUser } from "@/lib/canvas";
+import { autosaveCanvasDraft, getCanvasForUser, rewriteCanvasSelectionForUser, rollbackCanvasForUser, updateCanvasForUser } from "@/lib/canvas";
 import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
-import { canvasUpdateSchema } from "@/lib/validators";
+import { canvasRewriteSchema, canvasRollbackSchema, canvasUpdateSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -24,6 +24,62 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   try {
     const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
+    if (body?.action === "rewrite") {
+      const payload = canvasRewriteSchema.parse(body);
+      const canvas = await rewriteCanvasSelectionForUser({
+        userId: user.id,
+        canvasId: params.id,
+        selection: payload.selection,
+        action: payload.action,
+        prompt: payload.prompt
+      });
+
+      await writeAuditLog({
+        action: "canvas.rewrite",
+        actorId: user.id,
+        entityType: "canvas",
+        entityId: params.id,
+        details: {
+          action: payload.action
+        }
+      });
+
+      return apiSuccess({ canvas });
+    }
+
+    if (body?.action === "rollback") {
+      const payload = canvasRollbackSchema.parse(body);
+      const canvas = await rollbackCanvasForUser({
+        userId: user.id,
+        canvasId: params.id,
+        version: payload.version
+      });
+
+      await writeAuditLog({
+        action: "canvas.rollback",
+        actorId: user.id,
+        entityType: "canvas",
+        entityId: params.id,
+        details: {
+          version: payload.version
+        }
+      });
+
+      return apiSuccess({ canvas });
+    }
+
+    if (body?.action === "autosave") {
+      const payload = canvasUpdateSchema.parse(body);
+      const canvas = await autosaveCanvasDraft({
+        userId: user.id,
+        canvasId: params.id,
+        content: payload.content,
+        prompt: payload.prompt
+      });
+
+      return apiSuccess({ canvas });
+    }
+
     const payload = canvasUpdateSchema.parse(body);
     const canvas = await updateCanvasForUser({
       userId: user.id,

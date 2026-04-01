@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { SearchDepth } from "@prisma/client";
 import { requireCurrentUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
-import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
+import { apiError, apiSuccess, buildPaginationMeta, resolveErrorMessage } from "@/lib/http";
 import { listSearchSessionsForUser, runWebSearch } from "@/lib/search";
 import { searchSessionCreateSchema } from "@/lib/validators";
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const user = await requireCurrentUser(request);
     const projectId = request.nextUrl.searchParams.get("projectId") || undefined;
     const sessions = await listSearchSessionsForUser(user.id, projectId);
-    return apiSuccess({ sessions });
+    return apiSuccess({ sessions }, undefined, buildPaginationMeta({ page: 1, pageSize: sessions.length || 1, total: sessions.length }));
   } catch (error) {
     const message = resolveErrorMessage(error);
     return apiError(message, message === "UNAUTHORIZED" ? "Требуется авторизация" : message, message === "UNAUTHORIZED" ? 401 : 400);
@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       projectId: payload.projectId,
       chatId: payload.chatId,
+      sessionId: payload.sessionId,
       query: payload.query,
       latestOnly: payload.latestOnly,
       depth: payload.depth as SearchDepth
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
       entityId: session.id,
       details: {
         query: payload.query,
-        depth: payload.depth
+        depth: payload.depth,
+        sessionId: payload.sessionId || null
       }
     });
 

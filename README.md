@@ -9,6 +9,7 @@ ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: ед
 - projects как контейнер для чатов, файлов, документов и canvas
 - files/upload flow с локальным storage, извлечением текста, chunking и анализом
 - web search с сохранением search sessions и источников
+- working tool pages: `image`, `audio`, `video`, `vision`, `search`, `documents`
 - documents flow: генерация source, version history, canvas-open path и export в `pdf/docx/pptx/md/txt`
 - canvas flow: создание, редактирование, version history и line diff
 - billing и payment flow через Platega
@@ -17,9 +18,9 @@ ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: ед
 
 ## Основные маршруты
 
-- UI: `/`, `/chat`, `/projects`, `/projects/[id]`, `/files`, `/documents`, `/canvas`, `/canvas/[id]`, `/tools/search`, `/tools/vision`, `/tools/documents`, `/rates`, `/profile`, `/admin`
+- UI: `/`, `/chat`, `/projects`, `/projects/[id]`, `/files`, `/documents`, `/canvas`, `/canvas/[id]`, `/tools/image`, `/tools/audio`, `/tools/video`, `/tools/search`, `/tools/vision`, `/tools/documents`, `/rates`, `/profile`, `/admin`
 - Core API: `/api/chat`, `/api/chat/stream`, `/api/chats`, `/api/models`
-- Workspace API: `/api/projects`, `/api/files`, `/api/search`, `/api/documents`, `/api/canvas`
+- Workspace API: `/api/projects`, `/api/files`, `/api/search`, `/api/documents`, `/api/canvas`, `/api/tools/image`, `/api/tools/audio`, `/api/tools/video`, `/api/tools/vision`
 - Billing API: `/api/payments/create`, `/api/payments/history`, `/api/payments/quote`, `/api/payments/webhook`
 - Admin API: `/api/admin/stats`, `/api/admin/users`, `/api/admin/payments`, `/api/admin/models`, `/api/admin/files`, `/api/admin/projects`, `/api/admin/documents`
 
@@ -95,12 +96,21 @@ npm start
    - появляются tool events,
    - сообщения и attachments сохраняются.
 5. В `/tools/search` выполнить запрос и проверить сохранённые источники.
-6. В `/documents` создать документ, затем нажать export в `PDF`, `DOCX`, `PPTX`, `MD`, `TXT`.
-7. В `/canvas` создать canvas, открыть `/canvas/[id]`, сохранить новую версию и посмотреть diff.
-8. В `/admin` проверить stats/users/payments/models и новые backend endpoints:
+6. В `/tools/image`, `/tools/audio`, `/tools/video`, `/tools/vision` запустить jobs и убедиться, что появляются `ApiJob` и file artifacts.
+7. В `/documents` или `/tools/documents` создать документ, затем нажать export в `PDF`, `DOCX`, `PPTX`, `MD`, `TXT`.
+8. В `/canvas` создать canvas, открыть `/canvas/[id]`, сохранить новую версию, сделать rewrite/rollback и посмотреть diff.
+9. В `/admin` проверить stats/users/payments/models и новые backend endpoints:
    - `/api/admin/files`
    - `/api/admin/projects`
    - `/api/admin/documents`
+
+## Beta-статус
+
+Проект уже не выглядит как MVP-заготовка, но это всё ещё beta stage:
+
+- tool pages `image/audio/video/vision` пока идут через встроенные job pipelines и локальные artifacts; для production quality нужен реальный provider layer
+- chat UI, admin UI и split-view UX ещё можно заметно дополировать третьим прогоном
+- search уже подтягивает page content и citations, но не претендует на полноценный crawler
 
 ## Миграции
 
