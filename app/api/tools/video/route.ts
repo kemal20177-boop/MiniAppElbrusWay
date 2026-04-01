@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireCurrentUser } from "@/lib/auth";
 import { apiError, apiSuccess, resolveErrorMessage } from "@/lib/http";
 import { createToolJob, listToolJobsForUser, queueToolJob } from "@/lib/tool-jobs";
+import { getPreferredRouterModel } from "@/lib/routerai/models";
 import { toolVideoSchema } from "@/lib/validators";
 
 export async function GET(request: NextRequest) {
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest) {
       jobTypePrefix: "video.",
       take: 20
     });
-    return apiSuccess({ jobs });
+    const model = await getPreferredRouterModel({ forVideoInput: true });
+    return apiSuccess({ jobs, capability: { videoAnalysis: model?.id || null, generation: false, beta: true } });
   } catch (error) {
     return apiError("VIDEO_LIST_FAILED", resolveErrorMessage(error), 400);
   }

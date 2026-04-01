@@ -9,6 +9,9 @@ import {
   type RouterMessage,
   type RouterResponsesInput
 } from "@/lib/routerai";
+import { createRouterChatCompletion, createRouterChatStream, type RouterChatContentPart } from "@/lib/routerai/chat";
+import { toRouterContentPartForFile } from "@/lib/routerai/files";
+import { buildRouterPlugins } from "@/lib/routerai/plugins";
 import { getPlanExpiry, plans, tokenPackages, type PlanId } from "@/lib/plans";
 import { makeId, nowIso, type PaymentRecord, type UserRecord, ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
@@ -29,7 +32,6 @@ import {
   resolvePromoCode
 } from "@/lib/billing";
 import { attachFilesToChat, buildAttachmentContext } from "@/lib/files";
-import { runWebSearch } from "@/lib/search";
 
 type ChatToolSelection = {
   webSearch?: boolean;
@@ -376,35 +378,15 @@ async function prepareChatRuntimeContext(params: {
   if (params.tools?.webSearch) {
     const lastUserMessage = getLastUserMessage(params.messages);
     if (lastUserMessage?.content) {
-      const searchSession = await runWebSearch({
-        userId: params.userId,
-        chatId: chat.id,
-        projectId: chat.projectId,
-        query: lastUserMessage.content
-      });
-      const searchContext = searchSession.sources
-        .map((source, index) => `[${index + 1}] ${source.title} — ${source.snippet || source.url}`)
-        .join("\n");
-
-      augmentedMessages.unshift({
-        role: "developer",
-        content: `Используй web search контекст и ссылайся на источники по номерам.\n${searchContext}`
-      });
-
       toolEvents.push(
         await createToolEvent({
           chatId: chat.id,
           userId: params.userId,
-          toolName: "web_search",
+          toolName: "routerai_web_plugin",
           input: { query: lastUserMessage.content },
           output: {
-            searchSessionId: searchSession.id,
-            answer: searchSession.answer,
-            sources: searchSession.sources.map((source, index) => ({
-              index: index + 1,
-              title: source.title,
-              url: source.url
-            }))
+            mode: "routerai-plugin",
+            query: lastUserMessage.content
           }
         })
       );
@@ -417,6 +399,34 @@ async function prepareChatRuntimeContext(params: {
     messages: augmentedMessages,
     toolEvents
   } satisfies PreparedChatContext;
+}
+
+async function toRouterMessages(params: {
+  userId: string;
+  messages: PreparedChatContext["messages"];
+  attachmentIds?: string[];
+}) {
+  const routerMessages: RouterMessage[] = params.messages.map((message) => ({
+    role: message.role,
+    content: message.content
+  }));
+
+  const lastUserIndex = [...routerMessages].map((entry, index) => ({ entry, index })).reverse().find((entry) => entry.entry.role === "user")?.index;
+  if (lastUserIndex == null || !(params.attachmentIds || []).length) {
+    return routerMessages;
+  }
+
+  const message = routerMessages[lastUserIndex];
+  const parts: RouterChatContentPart[] = [{ type: "text", text: String(message.content || "") }];
+  for (const fileId of params.attachmentIds || []) {
+    parts.push(await toRouterContentPartForFile(params.userId, fileId));
+  }
+  routerMessages[lastUserIndex] = {
+    role: message.role,
+    content: parts
+  };
+
+  return routerMessages;
 }
 
 export async function persistChatCompletion(params: {
@@ -604,8 +614,24 @@ export async function completeChat(params: {
     model: params.model,
     messages: context.messages
   });
-  const completion = await createRouterCompletion(params.model, context.messages as RouterMessage[], {
-    maxTokens: policy.maxCompletionTokens
+  const routerMessages = await toRouterMessages({
+    userId: params.user.id,
+    messages: context.messages,
+    attachmentIds: params.attachmentIds
+  });
+  const plugins = buildRouterPlugins({
+    web: Boolean(params.tools?.webSearch && modelConfig.supportsWebSearch),
+    fileParser: Boolean((params.attachmentIds || []).length && modelConfig.supportsTools)
+  });
+  const completion = await createRouterChatCompletion({
+    userId: params.user.id,
+    projectId: context.projectId,
+    chatId: context.chatId,
+    model: params.model,
+    messages: routerMessages,
+    maxTokens: policy.maxCompletionTokens,
+    plugins,
+    ...(params.tools?.webSearch && modelConfig.supportsWebSearch ? { webSearchOptions: { search_context_size: "medium" } } : {})
   });
   const content = String(completion.choices?.[0]?.message?.content || "");
   const promptTokens = Number(completion.usage?.prompt_tokens || 0);
@@ -667,6 +693,23 @@ function extractResponseText(output: Array<Record<string, unknown>> | undefined)
   return "";
 }
 
+function flattenRouterMessageContent(content: string | RouterChatContentPart[]) {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  return content
+    .map((part) => {
+      if (part.type === "text") return part.text;
+      if (part.type === "file") return `[file:${part.file.filename}]`;
+      if (part.type === "image_url") return "[image]";
+      if (part.type === "video_url") return "[video]";
+      if (part.type === "input_audio") return "[audio]";
+      return "";
+    })
+    .join("\n");
+}
+
 export async function completeChatViaResponses(params: {
   user: UserRecord;
   chatId?: string;
@@ -704,7 +747,7 @@ export async function completeChatViaResponses(params: {
     chatId: params.chatId,
     projectId: params.projectId,
     model: params.model,
-    messages: inputMessages,
+    messages: inputMessages.map((entry) => ({ role: entry.role, content: flattenRouterMessageContent(entry.content) })),
     content,
     promptTokens,
     completionTokens,
@@ -754,8 +797,24 @@ export async function createChatStream(params: {
     model: params.model,
     messages: context.messages
   });
-  const response = await createRouterCompletionStream(params.model, context.messages as RouterMessage[], {
-    maxTokens: prepared.policy.maxCompletionTokens
+  const routerMessages = await toRouterMessages({
+    userId: params.user.id,
+    messages: context.messages,
+    attachmentIds: params.attachmentIds
+  });
+  const plugins = buildRouterPlugins({
+    web: Boolean(params.tools?.webSearch && prepared.modelConfig.supportsWebSearch),
+    fileParser: Boolean((params.attachmentIds || []).length && prepared.modelConfig.supportsTools)
+  });
+  const { response } = await createRouterChatStream({
+    userId: params.user.id,
+    projectId: context.projectId,
+    chatId: context.chatId,
+    model: params.model,
+    messages: routerMessages,
+    maxTokens: prepared.policy.maxCompletionTokens,
+    plugins,
+    ...(params.tools?.webSearch && prepared.modelConfig.supportsWebSearch ? { webSearchOptions: { search_context_size: "medium" } } : {})
   });
 
   return { ...prepared, response, chatId: context.chatId, projectId: context.projectId, toolEvents: context.toolEvents };

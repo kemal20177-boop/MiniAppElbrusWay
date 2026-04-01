@@ -914,6 +914,9 @@ function ModelEditor({
   onSave: (id: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [isEnabled, setIsEnabled] = useState(Boolean(model.isEnabled));
+  const [isFeatured, setIsFeatured] = useState(Boolean(model.isFeatured));
+  const [featuredGroup, setFeaturedGroup] = useState(String(model.featuredGroup || ""));
+  const [featuredOrder, setFeaturedOrder] = useState(String(model.featuredOrder || 0));
   const [minPlan, setMinPlan] = useState(String(model.minPlan || "FREE"));
   const [maxTokens, setMaxTokens] = useState(String(model.maxTokens || 4096));
 
@@ -925,11 +928,19 @@ function ModelEditor({
         <label className="muted">
           <input type="checkbox" checked={isEnabled} onChange={(event) => setIsEnabled(event.target.checked)} /> enabled
         </label>
+        <label className="muted">
+          <input type="checkbox" checked={isFeatured} onChange={(event) => setIsFeatured(event.target.checked)} /> featured
+        </label>
         <select value={minPlan} onChange={(event) => setMinPlan(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
           {["FREE", "BASE", "PRO", "ULTRA", "BUSINESS"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
         </select>
+        <select value={featuredGroup} onChange={(event) => setFeaturedGroup(event.target.value)} style={{ ...fieldStyle, width: 170 }}>
+          <option value="">no group</option>
+          {["top_chat", "top_image", "top_audio", "fast", "cheap", "premium", "coding", "reasoning"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+        </select>
+        <input value={featuredOrder} onChange={(event) => setFeaturedOrder(event.target.value)} style={{ ...fieldStyle, width: 120 }} />
         <input value={maxTokens} onChange={(event) => setMaxTokens(event.target.value)} style={{ ...fieldStyle, width: 160 }} />
-        <button className="button-primary" type="button" onClick={() => void onSave(String(model.id), { isEnabled, minPlan, maxTokens: Number(maxTokens) })}>
+        <button className="button-primary" type="button" onClick={() => void onSave(String(model.id), { isEnabled, isFeatured, featuredGroup: featuredGroup || null, featuredOrder: Number(featuredOrder), minPlan, maxTokens: Number(maxTokens) })}>
           Сохранить
         </button>
       </div>

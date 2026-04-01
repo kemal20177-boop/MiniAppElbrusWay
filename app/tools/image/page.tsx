@@ -5,11 +5,13 @@ import { FormEvent, useEffect, useState } from "react";
 type Project = { id: string; title: string };
 type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { fileId?: string; previewUrl?: string; attempts?: number } | null };
 type FileRecord = { id: string; originalName: string; previewUrl: string | null };
+type Capability = { available: boolean; modelId: string | null };
 
 export default function ImageToolPage() {
   const [mode, setMode] = useState<"text-to-image" | "image-to-image">("text-to-image");
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("1:1");
+  const [imageSize, setImageSize] = useState("1K");
   const [projectId, setProjectId] = useState("");
   const [sourceFileId, setSourceFileId] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
@@ -19,6 +21,7 @@ export default function ImageToolPage() {
   const [error, setError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ available: false, modelId: null });
 
   useEffect(() => {
     void Promise.all([loadProjects(), loadFiles(), loadJobs()]);
@@ -45,6 +48,7 @@ export default function ImageToolPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { available: false, modelId: null });
     }
   }
 
@@ -59,6 +63,7 @@ export default function ImageToolPage() {
         mode,
         prompt,
         aspectRatio,
+        imageSize,
         projectId: projectId || undefined,
         sourceFileId: mode === "image-to-image" ? sourceFileId || undefined : undefined
       })
@@ -145,14 +150,24 @@ export default function ImageToolPage() {
             <div className="grid-3">
               <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value)} className="card" style={{ padding: 14 }}>
                 <option value="1:1">1:1</option>
+                <option value="2:3">2:3</option>
+                <option value="3:2">3:2</option>
+                <option value="3:4">3:4</option>
                 <option value="16:9">16:9</option>
                 <option value="9:16">9:16</option>
                 <option value="4:3">4:3</option>
+              </select>
+              <select value={imageSize} onChange={(event) => setImageSize(event.target.value)} className="card" style={{ padding: 14 }}>
+                <option value="1K">1K</option>
+                <option value="2K">2K</option>
+                <option value="4K">4K</option>
               </select>
               <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="card" style={{ padding: 14 }}>
                 <option value="">Без проекта</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
               </select>
+            </div>
+            <div className="grid-3">
               <select value={sourceFileId} onChange={(event) => setSourceFileId(event.target.value)} className="card" style={{ padding: 14 }} disabled={mode !== "image-to-image"}>
                 <option value="">Источник</option>
                 {images.map((file) => <option key={file.id} value={file.id}>{file.originalName}</option>)}
@@ -160,6 +175,7 @@ export default function ImageToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {statusMessage ? <div className="muted">{statusMessage}</div> : null}
+            <div className="muted">RouterAI image model: {capability.modelId || "not available"}</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="button-primary" type="submit">Сгенерировать</button>
               <a className="button-secondary" href="/files">Открыть files</a>

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type UserProfile = {
   id: string;
@@ -13,6 +14,7 @@ type UserProfile = {
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [payments, setPayments] = useState<Array<Record<string, unknown>>>([]);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
@@ -80,6 +82,12 @@ export default function ProfilePage() {
     setMessage("Реферальная ссылка скопирована");
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/auth/login");
+    router.refresh();
+  }
+
   const recentReferrals = Array.isArray(referral?.recentReferrals) ? referral.recentReferrals : [];
   const recentRewards = Array.isArray(referral?.recentRewards) ? referral.recentRewards : [];
 
@@ -107,7 +115,10 @@ export default function ProfilePage() {
             <h2 style={{ marginTop: 0 }}>Настройки</h2>
             <div className="muted" style={{ marginBottom: 12 }}>Обновление имени хранится на сервере.</div>
             <input value={name} onChange={(event) => setName(event.target.value)} style={fieldStyle} />
-            <button className="button-primary" style={{ marginTop: 14 }} type="submit">Сохранить</button>
+            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+              <button className="button-primary" type="submit">Сохранить</button>
+              <button className="button-ghost" type="button" onClick={() => void logout()}>Logout</button>
+            </div>
             {message ? <div style={{ marginTop: 10 }}>{message}</div> : null}
           </form>
 

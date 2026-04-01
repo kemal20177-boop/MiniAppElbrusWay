@@ -1,20 +1,21 @@
 # ElbrusWay AI
 
-ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: единый кабинет, единый токен-баланс, единый чат и рабочие модули вокруг RouterAI.
+ElbrusWay AI — AI workspace-платформа в бренде ElbrusWay: единый кабинет, единый токен-баланс, единый чат и рабочие модули вокруг RouterAI как основного AI backend.
 
 ## Что реализовано сейчас
 
 - auth + cookie sessions
-- chat core 2.0 с SSE, project context, file attachments и tool events
+- chat core с SSE, RouterAI streaming, project context, file attachments и tool events
 - projects как контейнер для чатов, файлов, документов и canvas
 - files/upload flow с локальным storage, извлечением текста, chunking и анализом
 - web search с сохранением search sessions и источников
 - working tool pages: `image`, `audio`, `video`, `vision`, `search`, `documents`
-- provider layer in `lib/providers/*` for image/audio/video/vision jobs
+- RouterAI layer в `lib/routerai/*` для `client/chat/models/image/audio/files/plugins`
+- живой каталог моделей RouterAI с capability fields, pricing и curated sections
 - documents flow: генерация source, version history, canvas-open path и export в `pdf/docx/pptx/md/txt`
 - canvas flow: создание, редактирование, version history и line diff
 - billing и payment flow через Platega
-- admin API для users, payments, models, plans, promo/referrals, files, projects, documents
+- admin API для users, payments, models, plans, promo/referrals, files, projects, documents, jobs, search sessions, storage
 - audit logs, rate limit, spending limits, zod validation, auth/role guards
 
 ## Основные маршруты
@@ -75,7 +76,13 @@ npm start
 - `DATABASE_URL`
 - `REDIS_URL`
 - `ROUTERAI_API_KEY`
+- `ROUTERAI_BASE_URL`
 - `ROUTERAI_PROVIDER_COUNTRY`
+- `ROUTERAI_MODELS_CACHE_TTL_SEC`
+- `ROUTERAI_IMAGE_MODEL`
+- `ROUTERAI_AUDIO_MODEL`
+- `ROUTERAI_VISION_MODEL`
+- `ROUTERAI_VIDEO_MODEL`
 - `SPENDING_LIMIT_RUB_PER_REQUEST`
 - `SPENDING_LIMIT_RUB_PER_USER_PER_DAY`
 - `SPENDING_LIMIT_RUB_PER_DAY`
@@ -108,7 +115,19 @@ npm start
    - появляются tool events,
    - сообщения и attachments сохраняются.
 5. В `/tools/search` выполнить запрос и проверить сохранённые источники.
-6. В `/tools/image`, `/tools/audio`, `/tools/video`, `/tools/vision` запустить jobs и убедиться, что появляются `ApiJob` и file artifacts.
+6. В `/tools/image` запустить реальную image generation через RouterAI и убедиться, что появляется file artifact с preview.
+7. В `/tools/vision` выполнить OCR/describe/chart analysis по изображению и убедиться, что в job сохраняется structured result.
+8. В `/tools/audio` проверить transcription. Режим TTS должен быть виден только если live RouterAI catalog подтверждает audio output.
+9. В `/tools/video` проверить, что страница честно показывает beta status и не обещает fake generated video, если live catalog не подтверждает video output.
+10. В `/admin` проверить featured groups и workspace sections:
+   - `/api/admin/models`
+   - `/api/admin/files`
+   - `/api/admin/projects`
+   - `/api/admin/documents`
+   - `/api/admin/search-sessions`
+   - `/api/admin/jobs`
+   - `/api/admin/storage`
+11. В `/profile` проверить logout и account center UX.
 7. В `/documents` или `/tools/documents` создать документ, затем нажать export в `PDF`, `DOCX`, `PPTX`, `MD`, `TXT`.
 8. В `/canvas` создать canvas, открыть `/canvas/[id]`, сохранить новую версию, сделать rewrite/rollback и посмотреть diff.
 9. В `/admin` проверить stats/users/payments/models и новые backend endpoints:
@@ -127,10 +146,11 @@ npm run test:smoke
 
 Проект уже близок к production-ready workspace, но это всё ещё beta stage:
 
-- production path для `image/audio/video/vision` теперь идёт через provider adapters из `lib/providers/*`, а текстовые/локальные артефакты остались только как безопасный dev fallback
+- основной AI backend теперь RouterAI, включая live catalog, chat streaming и multimodal tools
+- image/vision/audio используют реальные RouterAI calls; video остаётся capability-based и честно помечен как beta, если live catalog не подтверждает output generation
 - tool jobs поддерживают `queued/running/succeeded/failed/cancelled`, polling, retry и cancel поверх `ApiJob`
-- admin UI покрывает workspace-сущности, но ещё можно усилить ручные moderation actions и глубину drill-down
 - search уже делает page fetch + dedupe + citations, но не является полноценным crawler/indexer
+- остаются frontend warnings по hook dependencies и `next/image`, которые не ломают runtime, но ещё можно добить post-release pass
 
 ## Release Checklist
 
@@ -141,6 +161,7 @@ npm run test:smoke
 - `npm run test:unit`
 - `npm run test:smoke`
 - `npm run build`
+- `npm run lint`
 - проверить руками `/chat`, `/files`, `/documents`, `/tools/*`, `/admin`
 
 ## Миграции

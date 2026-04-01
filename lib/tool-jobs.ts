@@ -5,6 +5,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { createArtifactFileForUser, getFileForUser } from "@/lib/files";
 import { generateImageArtifact, generateVideoArtifact, runVisionProvider, synthesizeSpeechArtifact, transcribeAudioArtifact } from "@/lib/providers";
 import { buildToolJobMeta, getToolJobMeta, shouldRetryJob } from "@/lib/tool-job-utils";
+import { getPreferredRouterModel } from "@/lib/routerai/models";
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.TOOL_JOB_TIMEOUT_MS || 60000);
 
@@ -226,10 +227,19 @@ async function executeJob(jobId: string) {
     let output: Record<string, unknown> = {};
 
     if (job.jobType.startsWith("image.")) {
+      const model = await getPreferredRouterModel({ forImageOutput: true });
+      if (!model) {
+        throw new Error("ROUTERAI_IMAGE_MODEL_UNAVAILABLE");
+      }
       const artifact = await withTimeout(generateImageArtifact({
+        userId: job.userId,
+        projectId: job.projectId || undefined,
+        model: model.id,
         mode: String(input.mode || "text-to-image") as "text-to-image" | "image-to-image",
         prompt: String(input.prompt || ""),
         aspectRatio: String(input.aspectRatio || "1:1"),
+        imageSize: typeof input.imageSize === "string" ? input.imageSize : undefined,
+        sourceFileId: typeof input.sourceFileId === "string" ? input.sourceFileId : undefined,
         sourceHint: input.sourceFileId ? `sourceFileId=${String(input.sourceFileId)}` : undefined
       }));
       const file = await persistToolArtifact({
@@ -240,17 +250,22 @@ async function executeJob(jobId: string) {
         content: artifact.content,
         metadata: artifact.metadata
       });
-      output = { fileId: file.id, previewUrl: file.previewUrl, provider: artifact.metadata.provider, attempts: meta.attemptCount + 1 };
+      output = { fileId: file.id, previewUrl: file.previewUrl, provider: artifact.metadata.provider, model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "image.generate", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("audio.transcription")) {
+      const model = await getPreferredRouterModel({ forAudioInput: true });
+      if (!model) {
+        throw new Error("ROUTERAI_AUDIO_MODEL_UNAVAILABLE");
+      }
       const sourceFile = input.sourceFileId ? await getFileForUser(job.userId, String(input.sourceFileId)) : null;
       if (!sourceFile) {
         throw new Error("FILE_NOT_FOUND");
       }
       const artifact = await withTimeout(transcribeAudioArtifact({
-        fileName: sourceFile.originalName,
-        extractedText: sourceFile.extractedText,
-        mimeType: sourceFile.mimeType
+        userId: job.userId,
+        projectId: job.projectId || undefined,
+        sourceFileId: sourceFile.id,
+        model: model.id
       }));
       const file = await persistToolArtifact({
         userId: job.userId,
@@ -260,11 +275,18 @@ async function executeJob(jobId: string) {
         content: artifact.content,
         metadata: artifact.metadata
       });
-      output = { fileId: file.id, textPreview: String(artifact.content).slice(0, 600), attempts: meta.attemptCount + 1 };
+      output = { fileId: file.id, textPreview: String(artifact.content).slice(0, 600), model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "audio.transcribe", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("audio.tts")) {
+      const model = await getPreferredRouterModel({ forAudioOutput: true });
+      if (!model) {
+        throw new Error("ROUTERAI_TTS_MODEL_UNAVAILABLE");
+      }
       const artifact = await withTimeout(synthesizeSpeechArtifact({
+        userId: job.userId,
+        projectId: job.projectId || undefined,
         text: String(input.text || ""),
+        model: model.id,
         voice: typeof input.voice === "string" ? input.voice : undefined
       }));
       const file = await persistToolArtifact({
@@ -275,7 +297,7 @@ async function executeJob(jobId: string) {
         content: artifact.content,
         metadata: artifact.metadata
       });
-      output = { fileId: file.id, previewUrl: file.previewUrl, attempts: meta.attemptCount + 1 };
+      output = { fileId: file.id, previewUrl: file.previewUrl, model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "audio.tts", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("video.")) {
       const artifact = await withTimeout(generateVideoArtifact({
@@ -294,11 +316,19 @@ async function executeJob(jobId: string) {
       output = { fileId: file.id, status: "done", provider: artifact.metadata.provider, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "video.create", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("vision.")) {
+      const model = await getPreferredRouterModel({ forImageInput: true });
+      if (!model) {
+        throw new Error("ROUTERAI_VISION_MODEL_UNAVAILABLE");
+      }
       const sourceFile = input.sourceFileId ? await getFileForUser(job.userId, String(input.sourceFileId)) : null;
       if (!sourceFile) {
         throw new Error("FILE_NOT_FOUND");
       }
       const result = await withTimeout(runVisionProvider({
+        userId: job.userId,
+        projectId: job.projectId || undefined,
+        model: model.id,
+        sourceFileId: sourceFile.id,
         mode: String(input.mode || "describe") as "ocr" | "describe" | "screenshot-analysis" | "chart-analysis" | "ask",
         fileName: sourceFile.originalName,
         extractedText: sourceFile.extractedText,
@@ -315,7 +345,7 @@ async function executeJob(jobId: string) {
           sourceFileId: sourceFile.id
         }
       });
-      output = { fileId: file.id, result: result.structured, attempts: meta.attemptCount + 1 };
+      output = { fileId: file.id, result: result.structured, model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "vision.run", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else {
       throw new Error("UNSUPPORTED_TOOL_JOB");

@@ -1,58 +1,40 @@
 import "server-only";
-import { runTextProvider } from "@/lib/providers/router-text";
-import { callExternalProvider, isProviderConfigured } from "@/lib/providers/shared";
+import { createRouterChatCompletion } from "@/lib/routerai/chat";
+import { toRouterContentPartForFile } from "@/lib/routerai/files";
 
 export async function runVisionProvider(params: {
+  userId: string;
+  projectId?: string;
+  model: string;
+  sourceFileId: string;
   mode: "ocr" | "describe" | "screenshot-analysis" | "chart-analysis" | "ask";
   fileName: string;
   extractedText?: string | null;
   question?: string;
 }) {
-  if (isProviderConfigured("VISION_PROVIDER_BASE_URL", "VISION_PROVIDER_API_KEY")) {
-    const payload = await callExternalProvider({
-      apiKeyEnv: "VISION_PROVIDER_API_KEY",
-      baseUrlEnv: "VISION_PROVIDER_BASE_URL",
-      path: "/analyze",
-      payload: {
-        mode: params.mode,
-        fileName: params.fileName,
-        extractedText: params.extractedText || null,
-        question: params.question || null,
-        model: process.env.VISION_PROVIDER_MODEL || null
+  const promptByMode = {
+    ocr: "Выполни OCR. Верни краткое summary и блоки текста.",
+    describe: "Опиши изображение для workspace. Верни summary и answer.",
+    "screenshot-analysis": "Проанализируй скриншот интерфейса и ключевые проблемы.",
+    "chart-analysis": "Проанализируй график и верни summary и findings.",
+    ask: `Ответь на вопрос по изображению: ${params.question || ""}`
+  } as const;
+
+  const completion = await createRouterChatCompletion({
+    userId: params.userId,
+    projectId: params.projectId,
+    model: params.model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: promptByMode[params.mode] },
+          await toRouterContentPartForFile(params.userId, params.sourceFileId)
+        ]
       }
-    });
-
-    const structured = (payload.metadata?.structured || {}) as Record<string, unknown>;
-    const text =
-      typeof payload.text === "string"
-        ? payload.text
-        : typeof structured.summary === "string"
-          ? structured.summary
-          : "";
-
-    return {
-      text,
-      structured: Object.keys(structured).length
-        ? structured
-        : {
-            summary: text || "Vision result available.",
-            answer: text || "Vision result available."
-          }
-    };
-  }
-
-  const response = await runTextProvider({
-    system: "Ты vision analysis assistant. Отвечай структурированно, коротко и полезно для workspace.",
-    prompt: [
-      `Mode: ${params.mode}`,
-      `File: ${params.fileName}`,
-      params.question ? `Question: ${params.question}` : null,
-      params.extractedText ? `Available OCR/content:\n${params.extractedText.slice(0, 5000)}` : "No extracted text available."
-    ].filter(Boolean).join("\n\n"),
-    maxTokens: 900
+    ]
   });
-
-  const text = response.text || "";
+  const text = completion.choices?.[0]?.message?.content || "";
   return {
     text,
     structured:
@@ -68,7 +50,7 @@ export async function runVisionProvider(params: {
             }
           : {
               summary: text,
-              answer: text
+            answer: text
             }
   };
 }

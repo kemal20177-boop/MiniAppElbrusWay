@@ -8,8 +8,8 @@ export async function runTextProvider(params: {
   maxTokens?: number;
 }) {
   const messages: RouterMessage[] = [
-    ...(params.system ? [{ role: "system", content: params.system }] : []),
-    { role: "user", content: params.prompt }
+    ...(params.system ? [{ role: "system" as const, content: params.system }] : []),
+    { role: "user" as const, content: params.prompt }
   ];
   const response = await createRouterCompletion(params.model || DEFAULT_ROUTER_MODEL, messages, {
     maxTokens: params.maxTokens || 1500

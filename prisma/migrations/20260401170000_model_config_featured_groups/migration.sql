@@ -1,0 +1,9 @@
+ALTER TABLE "ModelConfig"
+  ADD COLUMN "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "featuredGroup" TEXT,
+  ADD COLUMN "featuredOrder" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN "supportsFiles" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "supportsAudio" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "supportsVideo" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "supportsReasoning" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "supportsTools" BOOLEAN NOT NULL DEFAULT false;

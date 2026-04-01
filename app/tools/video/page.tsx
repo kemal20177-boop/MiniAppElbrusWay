@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { attempts?: number } | null };
 type Project = { id: string; title: string };
+type Capability = { videoAnalysis: string | null; generation: boolean; beta: boolean };
 
 export default function VideoToolPage() {
   const [mode, setMode] = useState<"storyboard" | "task">("storyboard");
@@ -14,6 +15,7 @@ export default function VideoToolPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [message, setMessage] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ videoAnalysis: null, generation: false, beta: true });
 
   async function patchJob(jobId: string, action: "retry" | "cancel") {
     const response = await fetch(`/api/tools/jobs/${jobId}`, {
@@ -40,6 +42,7 @@ export default function VideoToolPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { videoAnalysis: null, generation: false, beta: true });
     }
   }
 
@@ -105,8 +108,9 @@ export default function VideoToolPage() {
         <div className="badge">Video</div>
         <h1 className="section-title" style={{ marginTop: 16 }}>Video Pipeline</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Минимально рабочий video pipeline: storyboard prompt, video task create, список статусов и сохранение результата в project files.
+          Video generation включается только если live RouterAI catalog подтверждает capability. Сейчас здесь честный beta flow: storyboard, task creation и video analysis-ready artifacts.
         </p>
+        <div className="muted" style={{ marginTop: 12 }}>Video analysis model: {capability.videoAnalysis || "not available"} · generation: {capability.generation ? "enabled" : "beta-disabled"}</div>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>

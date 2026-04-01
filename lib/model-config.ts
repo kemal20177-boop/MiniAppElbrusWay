@@ -59,12 +59,20 @@ function toModelConfigCreateManyInput(model: RouterModelCatalogItem) {
     displayName: model.name,
     provider: model.provider,
     isEnabled: true,
+    isFeatured: model.curatedGroups.includes("top_chat") || model.curatedGroups.includes("top_image") || model.curatedGroups.includes("top_audio"),
+    featuredGroup: model.curatedGroups[0] || null,
+    featuredOrder: 0,
     minPlan: inferMinPlan(model),
     markupFactor: 1,
     inputPrice: Number(model.pricing?.prompt || 0),
     outputPrice: Number(model.pricing?.completion || 0),
     maxTokens: inferMaxTokens(model),
     supportsImages: model.supportsImages,
+    supportsFiles: model.supportsFiles,
+    supportsAudio: model.supportsAudio || model.outputModalities.includes("audio"),
+    supportsVideo: model.supportsVideo,
+    supportsReasoning: model.supportsReasoning,
+    supportsTools: model.supportsTools,
     supportsWebSearch: model.supportsWebSearch
   };
 }
@@ -115,6 +123,11 @@ export async function syncRemoteModelConfigs(force = false) {
               outputPrice: entry.outputPrice,
               maxTokens: entry.maxTokens,
               supportsImages: entry.supportsImages,
+              supportsFiles: entry.supportsFiles,
+              supportsAudio: entry.supportsAudio,
+              supportsVideo: entry.supportsVideo,
+              supportsReasoning: entry.supportsReasoning,
+              supportsTools: entry.supportsTools,
               supportsWebSearch: entry.supportsWebSearch
             }
           });

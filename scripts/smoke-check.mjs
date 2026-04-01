@@ -41,7 +41,7 @@ if (failed) {
 }
 
 const contentChecks = [
-  ["README.md", "provider layer in `lib/providers/*`"],
+  ["README.md", "RouterAI layer в `lib/routerai/*`"],
   ["app/tools/image/page.tsx", "History"],
   ["app/chat/page.tsx", "Open full canvas"],
   ["app/admin/page.tsx", "Tool Jobs"]

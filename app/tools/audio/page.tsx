@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { attempts?: number } | null };
 type UserFileItem = { id: string; originalName: string; kind: string };
 type Project = { id: string; title: string };
+type Capability = { transcription: string | null; tts: string | null };
 
 export default function AudioToolPage() {
   const [mode, setMode] = useState<"transcription" | "tts">("transcription");
@@ -18,6 +19,7 @@ export default function AudioToolPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ transcription: null, tts: null });
 
   async function patchJob(jobId: string, action: "retry" | "cancel") {
     const response = await fetch(`/api/tools/jobs/${jobId}`, {
@@ -44,6 +46,7 @@ export default function AudioToolPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { transcription: null, tts: null });
     }
   }
 
@@ -127,7 +130,7 @@ export default function AudioToolPage() {
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
             <div style={{ display: "flex", gap: 10 }}>
               <button type="button" className={mode === "transcription" ? "button-primary" : "button-secondary"} onClick={() => setMode("transcription")}>Transcription</button>
-              <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>TTS</button>
+              {capability.tts ? <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>TTS</button> : null}
             </div>
             {mode === "transcription" ? (
               <select value={sourceFileId} onChange={(event) => setSourceFileId(event.target.value)} className="card" style={{ padding: 14 }}>
@@ -147,6 +150,7 @@ export default function AudioToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {message ? <div style={{ color: "var(--success)" }}>{message}</div> : null}
+            <div className="muted">Transcription: {capability.transcription || "n/a"} · TTS: {capability.tts || "disabled by catalog"}</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button className="button-primary" type="submit">Запустить job</button>
               <a className="button-secondary" href="/documents">Открыть documents</a>

@@ -17,6 +17,7 @@ type VisionJob = {
   errorMessage?: string | null;
   output?: Record<string, unknown> | null;
 };
+type Capability = { available: boolean; modelId: string | null };
 
 const modes = [
   { id: "ocr", label: "OCR" },
@@ -35,6 +36,7 @@ export default function VisionPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ available: false, modelId: null });
 
   async function patchJob(jobId: string, action: "retry" | "cancel") {
     const response = await fetch(`/api/tools/jobs/${jobId}`, {
@@ -75,6 +77,7 @@ export default function VisionPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { available: false, modelId: null });
     }
   }
 
@@ -142,6 +145,7 @@ export default function VisionPage() {
         <p className="section-copy" style={{ maxWidth: 820 }}>
           Настоящий vision UX поверх image files: OCR, describe, screenshot analysis, chart analysis и Q&A по изображению с историей последних запросов.
         </p>
+        <div className="muted" style={{ marginTop: 12 }}>Vision model: {capability.modelId || "not available"}</div>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
 
         <div className="grid-3" style={{ marginTop: 24 }}>
