@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdminUser(request);
     const models = await prisma.modelConfig.findMany({
-      orderBy: { displayName: "asc" }
+      orderBy: [{ isFeatured: "desc" }, { featuredGroup: "asc" }, { featuredOrder: "asc" }, { displayName: "asc" }]
     });
 
     return NextResponse.json({ ok: true, models });

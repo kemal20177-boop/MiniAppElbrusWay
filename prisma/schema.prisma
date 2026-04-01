@@ -272,12 +272,20 @@ model ModelConfig {
   displayName       String
   provider          String
   isEnabled         Boolean @default(true)
+  isFeatured        Boolean @default(false)
+  featuredGroup     String?
+  featuredOrder     Int     @default(0)
   minPlan           Plan    @default(FREE)
   markupFactor      Float   @default(2.0)
   inputPrice        Float
   outputPrice       Float
   maxTokens         Int     @default(4096)
   supportsImages    Boolean @default(false)
+  supportsFiles     Boolean @default(false)
+  supportsAudio     Boolean @default(false)
+  supportsVideo     Boolean @default(false)
+  supportsReasoning Boolean @default(false)
+  supportsTools     Boolean @default(false)
   supportsWebSearch Boolean @default(false)
 }
 

@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-type Job = { id: string; status: string; createdAt: string };
+type Job = { id: string; status: string; createdAt: string; errorMessage?: string | null; output?: { attempts?: number } | null };
 type UserFileItem = { id: string; originalName: string; kind: string };
 type Project = { id: string; title: string };
+type Capability = { transcription: string | null; tts: string | null };
 
 export default function AudioToolPage() {
   const [mode, setMode] = useState<"transcription" | "tts">("transcription");
@@ -17,6 +18,24 @@ export default function AudioToolPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ transcription: null, tts: null });
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error?.message || "Не удалось обновить job");
+      return;
+    }
+    setMessage(action === "retry" ? "Audio job поставлен в очередь повторно." : "Audio job отменён.");
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
+  }
 
   useEffect(() => {
     void Promise.all([loadJobs(), loadFiles(), loadProjects()]);
@@ -27,6 +46,7 @@ export default function AudioToolPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { transcription: null, tts: null });
     }
   }
 
@@ -67,10 +87,36 @@ export default function AudioToolPage() {
       return;
     }
 
-    setMessage("Audio job сохранён как file artifact.");
+    setMessage("Audio job поставлен в очередь.");
+    setActiveJobId(payload.data.job.id);
     setText("");
-    await loadJobs();
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const job = payload.data.job as Job & { output?: { fileId?: string } };
+      if (job.status === "SUCCEEDED") {
+        setMessage("Audio artifact готов.");
+        setActiveJobId("");
+        await loadJobs();
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Audio job завершился с ошибкой");
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
 
   return (
     <main className="workspace-page">
@@ -84,7 +130,7 @@ export default function AudioToolPage() {
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
             <div style={{ display: "flex", gap: 10 }}>
               <button type="button" className={mode === "transcription" ? "button-primary" : "button-secondary"} onClick={() => setMode("transcription")}>Transcription</button>
-              <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>TTS</button>
+              {capability.tts ? <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>TTS</button> : null}
             </div>
             {mode === "transcription" ? (
               <select value={sourceFileId} onChange={(event) => setSourceFileId(event.target.value)} className="card" style={{ padding: 14 }}>
@@ -104,6 +150,7 @@ export default function AudioToolPage() {
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {message ? <div style={{ color: "var(--success)" }}>{message}</div> : null}
+            <div className="muted">Transcription: {capability.transcription || "n/a"} · TTS: {capability.tts || "disabled by catalog"}</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button className="button-primary" type="submit">Запустить job</button>
               <a className="button-secondary" href="/documents">Открыть documents</a>
@@ -115,10 +162,15 @@ export default function AudioToolPage() {
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 700 }}>{job.id}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>{job.id}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
                 </div>
-              ))}
+              </div>
+            ))}
               {jobs.length === 0 ? <div className="muted">Audio jobs пока не запускались.</div> : null}
             </div>
           </div>

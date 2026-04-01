@@ -1,15 +1,9 @@
 import "server-only";
 import { SearchDepth } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { computeSearchScore, dedupeSearchSources, extractMainContent, stripHtml, type SearchSourceCandidate } from "@/lib/search-utils";
 
-type SearchSourceDraft = {
-  title: string;
-  url: string;
-  snippet: string;
-  domain: string | null;
-  content: string;
-  score: number;
-};
+type SearchSourceDraft = SearchSourceCandidate;
 
 type SearchRunParams = {
   userId: string;
@@ -20,21 +14,6 @@ type SearchRunParams = {
   depth?: SearchDepth;
   latestOnly?: boolean;
 };
-
-function stripHtml(value: string) {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function buildSearchQuery(query: string, latestOnly?: boolean) {
   return latestOnly ? `${query} latest news update` : query;
@@ -60,42 +39,6 @@ function getFetchLimit(depth: SearchDepth) {
     default:
       return 3;
   }
-}
-
-function extractMainContent(html: string) {
-  const articleMatch =
-    html.match(/<article[\s\S]*?>([\s\S]*?)<\/article>/i) ||
-    html.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/i) ||
-    html.match(/<body[\s\S]*?>([\s\S]*?)<\/body>/i);
-  return stripHtml(articleMatch?.[1] || html).slice(0, 6000);
-}
-
-function computeScore(query: string, source: Pick<SearchSourceDraft, "title" | "snippet" | "content" | "domain">) {
-  const tokens = query
-    .toLowerCase()
-    .split(/\s+/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 2);
-  const haystack = `${source.title} ${source.snippet} ${source.content}`.toLowerCase();
-  let score = 0;
-
-  for (const token of tokens) {
-    if (source.title.toLowerCase().includes(token)) {
-      score += 5;
-    }
-    if (source.snippet.toLowerCase().includes(token)) {
-      score += 3;
-    }
-    if (haystack.includes(token)) {
-      score += 1;
-    }
-  }
-
-  if (source.domain?.includes("wikipedia")) {
-    score += 2;
-  }
-
-  return score;
 }
 
 async function fetchDuckDuckGoResults(query: string, depth: SearchDepth, latestOnly?: boolean) {
@@ -151,13 +94,17 @@ async function fetchDuckDuckGoResults(query: string, depth: SearchDepth, latestO
 
 async function fetchPageContent(url: string) {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Number(process.env.SEARCH_REQUEST_TIMEOUT_MS || 15000));
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; ElbrusWayAI/1.0; +https://elbrusway.ru)"
       },
       redirect: "follow",
-      cache: "no-store"
+      cache: "no-store",
+      signal: controller.signal
     });
+    clearTimeout(timer);
 
     if (!response.ok) {
       return "";
@@ -202,7 +149,7 @@ async function buildSearchSources(query: string, depth: SearchDepth, latestOnly?
   const enriched = await Promise.all(
     rawResults.slice(0, fetchLimit).map(async (entry) => {
       const content = await fetchPageContent(entry.url);
-      const score = computeScore(query, {
+      const score = computeSearchScore(query, {
         title: entry.title,
         snippet: entry.snippet,
         content,
@@ -220,7 +167,7 @@ async function buildSearchSources(query: string, depth: SearchDepth, latestOnly?
   const untouched = rawResults.slice(fetchLimit).map((entry) => ({
     ...entry,
     content: "",
-    score: computeScore(query, {
+    score: computeSearchScore(query, {
       title: entry.title,
       snippet: entry.snippet,
       content: "",
@@ -228,7 +175,7 @@ async function buildSearchSources(query: string, depth: SearchDepth, latestOnly?
     })
   }));
 
-  return [...enriched, ...untouched].sort((left, right) => right.score - left.score);
+  return dedupeSearchSources([...enriched, ...untouched]).sort((left, right) => right.score - left.score);
 }
 
 export async function runWebSearch(params: SearchRunParams) {

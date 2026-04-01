@@ -66,6 +66,13 @@ export default function AdminPage() {
   const [referralRewards, setReferralRewards] = useState<ReferralReward[]>([]);
   const [topReferrers, setTopReferrers] = useState<Array<Record<string, unknown>>>([]);
   const [models, setModels] = useState<Array<Record<string, unknown>>>([]);
+  const [adminFiles, setAdminFiles] = useState<Array<Record<string, unknown>>>([]);
+  const [adminProjects, setAdminProjects] = useState<Array<Record<string, unknown>>>([]);
+  const [adminDocuments, setAdminDocuments] = useState<Array<Record<string, unknown>>>([]);
+  const [searchSessions, setSearchSessions] = useState<Array<Record<string, unknown>>>([]);
+  const [toolJobs, setToolJobs] = useState<Array<Record<string, unknown>>>([]);
+  const [auditLogs, setAuditLogs] = useState<Array<Record<string, unknown>>>([]);
+  const [storageInfo, setStorageInfo] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -109,7 +116,14 @@ export default function AdminPage() {
       fetch("/api/admin/plans"),
       fetch("/api/admin/promocodes"),
       fetch("/api/admin/referrals"),
-      fetch("/api/admin/models")
+      fetch("/api/admin/models"),
+      fetch("/api/admin/files"),
+      fetch("/api/admin/projects"),
+      fetch("/api/admin/documents"),
+      fetch("/api/admin/search-sessions"),
+      fetch("/api/admin/jobs"),
+      fetch("/api/admin/audit"),
+      fetch("/api/admin/storage")
     ]);
 
     const payloads = await Promise.all(responses.map((response) => response.json()));
@@ -129,6 +143,13 @@ export default function AdminPage() {
     setReferralRewards(payloads[6].rewards || []);
     setTopReferrers(payloads[6].topReferrers || []);
     setModels(payloads[7].models || []);
+    setAdminFiles(payloads[8].data?.files || []);
+    setAdminProjects(payloads[9].data?.projects || []);
+    setAdminDocuments(payloads[10].data?.documents || []);
+    setSearchSessions(payloads[11].data?.sessions || []);
+    setToolJobs(payloads[12].data?.jobs || []);
+    setAuditLogs(payloads[13].data?.logs || []);
+    setStorageInfo(payloads[14].data || null);
   }
 
   async function updateUser(userId: string, payload: Record<string, unknown>) {
@@ -368,6 +389,13 @@ export default function AdminPage() {
             ["Реф. выплаты", `${String(stats?.referralRewardsRub ?? "...")} ₽`],
             ["Реф. сделок", String(stats?.referralRewardsCount ?? "...")],
             ["Расход RouterAI", `${String(stats?.realCostRub ?? "...")} ₽`],
+            ["Файлы", String(stats?.filesCount ?? "...")],
+            ["Документы", String(stats?.documentsCount ?? "...")],
+            ["Проекты", String(stats?.projectsCount ?? "...")],
+            ["Search runs", String(stats?.searchRuns ?? "...")],
+            ["Exports", String(stats?.exportsCount ?? "...")],
+            ["Failed jobs", String(stats?.failedJobsCount ?? "...")],
+            ["Storage", `${String(stats?.storageBytes ?? "...")} bytes`],
             [
               "Баланс RouterAI",
               stats?.routerCredits == null ? String(stats?.routerCreditsError ?? "...") : `${String(stats?.routerCredits)} ₽`
@@ -522,6 +550,103 @@ export default function AdminPage() {
           <div style={{ display: "grid", gap: 14 }}>
             {models.slice(0, 20).map((model) => (
               <ModelEditor key={String(model.id)} model={model} onSave={saveModel} />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid-3" style={{ marginTop: 24 }}>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Files</div>
+            {adminFiles.slice(0, 12).map((file) => (
+              <div key={String(file.id)} className="muted">
+                {String(file.originalName)} · {String(file.kind)} · {String(file.status)}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Projects</div>
+            {adminProjects.slice(0, 12).map((project) => (
+              <div key={String(project.id)} className="muted">
+                {String(project.title)} · chats {String((project._count as Record<string, unknown> | undefined)?.chats || 0)} · files {String((project._count as Record<string, unknown> | undefined)?.files || 0)}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Documents</div>
+            {adminDocuments.slice(0, 12).map((document) => (
+              <div key={String(document.id)} className="muted">
+                {String(document.title)} · {String(document.status)} · exports {String((document.exports as unknown[] | undefined)?.length || 0)}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid-3" style={{ marginTop: 24 }}>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Search Sessions</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {searchSessions.slice(0, 12).map((session) => (
+                <div key={String(session.id)} className="card" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700 }}>{String(session.query)}</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {String((session.user as Record<string, unknown> | null)?.email || "—")} · {formatDateTime(session.createdAt)}
+                  </div>
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    sources {(session.sources as unknown[] | undefined)?.length || 0} · project {String((session.project as Record<string, unknown> | null)?.title || "—")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Tool Jobs</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {toolJobs.slice(0, 12).map((job) => (
+                <div key={String(job.id)} className="card" style={{ padding: 14 }}>
+                  <div style={{ fontWeight: 700 }}>{String(job.jobType)}</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {String(job.status)} · {String((job.user as Record<string, unknown> | null)?.email || "—")}
+                  </div>
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    {String(job.errorMessage || "Без ошибок")} · {formatDateTime(job.createdAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>Storage / Usage</div>
+            <div className="muted" style={{ marginBottom: 12 }}>
+              Total storage: {String(storageInfo?.totalStorageBytes ?? stats?.storageBytes ?? "...")} bytes
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {((storageInfo?.filesByKind as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
+                <div key={String(entry.kind)} className="muted">
+                  {String(entry.kind)} · {String(entry.count)} files · {String(entry.sizeBytes)} bytes
+                </div>
+              ))}
+              {((storageInfo?.jobsByStatus as Array<Record<string, unknown>> | undefined) || []).map((entry) => (
+                <div key={String(entry.status)} className="muted">
+                  jobs {String(entry.status)} · {String(entry.count)}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ marginTop: 24 }}>
+          <div style={{ fontWeight: 800, marginBottom: 12 }}>Audit / Error States</div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {auditLogs.slice(0, 16).map((log) => (
+              <div key={String(log.id)} className="card" style={{ padding: 14 }}>
+                <div style={{ fontWeight: 700 }}>{String(log.action)}</div>
+                <div className="muted" style={{ marginTop: 4 }}>
+                  actor {String((log.actorUser as Record<string, unknown> | null)?.email || "system")} · entity {String(log.entityType || "—")}:{String(log.entityId || "—")}
+                </div>
+                <div className="muted" style={{ marginTop: 6 }}>{formatDateTime(log.createdAt)}</div>
+              </div>
             ))}
           </div>
         </div>
@@ -789,6 +914,9 @@ function ModelEditor({
   onSave: (id: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [isEnabled, setIsEnabled] = useState(Boolean(model.isEnabled));
+  const [isFeatured, setIsFeatured] = useState(Boolean(model.isFeatured));
+  const [featuredGroup, setFeaturedGroup] = useState(String(model.featuredGroup || ""));
+  const [featuredOrder, setFeaturedOrder] = useState(String(model.featuredOrder || 0));
   const [minPlan, setMinPlan] = useState(String(model.minPlan || "FREE"));
   const [maxTokens, setMaxTokens] = useState(String(model.maxTokens || 4096));
 
@@ -800,11 +928,19 @@ function ModelEditor({
         <label className="muted">
           <input type="checkbox" checked={isEnabled} onChange={(event) => setIsEnabled(event.target.checked)} /> enabled
         </label>
+        <label className="muted">
+          <input type="checkbox" checked={isFeatured} onChange={(event) => setIsFeatured(event.target.checked)} /> featured
+        </label>
         <select value={minPlan} onChange={(event) => setMinPlan(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
           {["FREE", "BASE", "PRO", "ULTRA", "BUSINESS"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
         </select>
+        <select value={featuredGroup} onChange={(event) => setFeaturedGroup(event.target.value)} style={{ ...fieldStyle, width: 170 }}>
+          <option value="">no group</option>
+          {["top_chat", "top_image", "top_audio", "fast", "cheap", "premium", "coding", "reasoning"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
+        </select>
+        <input value={featuredOrder} onChange={(event) => setFeaturedOrder(event.target.value)} style={{ ...fieldStyle, width: 120 }} />
         <input value={maxTokens} onChange={(event) => setMaxTokens(event.target.value)} style={{ ...fieldStyle, width: 160 }} />
-        <button className="button-primary" type="button" onClick={() => void onSave(String(model.id), { isEnabled, minPlan, maxTokens: Number(maxTokens) })}>
+        <button className="button-primary" type="button" onClick={() => void onSave(String(model.id), { isEnabled, isFeatured, featuredGroup: featuredGroup || null, featuredOrder: Number(featuredOrder), minPlan, maxTokens: Number(maxTokens) })}>
           Сохранить
         </button>
       </div>

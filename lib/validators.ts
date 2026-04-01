@@ -254,7 +254,8 @@ export const toolImageSchema = z.object({
   sourceFileId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
   style: z.string().trim().max(120).optional(),
-  aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3"]).default("1:1")
+  aspectRatio: z.enum(["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]).default("1:1"),
+  imageSize: z.enum(["1K", "2K", "4K"]).optional()
 });
 
 export const toolAudioSchema = z.object({

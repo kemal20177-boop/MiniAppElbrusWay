@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { destroySession, sessionCookieName } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 
-export async function POST(request: NextRequest) {
+async function performLogout(request: NextRequest) {
   const token = request.cookies.get(sessionCookieName)?.value;
   await destroySession(token);
   await writeAuditLog({
@@ -20,5 +20,22 @@ export async function POST(request: NextRequest) {
     path: "/"
   });
 
+  return response;
+}
+
+export async function POST(request: NextRequest) {
+  return performLogout(request);
+}
+
+export async function GET(request: NextRequest) {
+  const response = NextResponse.redirect(new URL("/auth/login", request.url));
+  const token = request.cookies.get(sessionCookieName)?.value;
+  await destroySession(token);
+  response.cookies.set(sessionCookieName, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    expires: new Date(0),
+    path: "/"
+  });
   return response;
 }

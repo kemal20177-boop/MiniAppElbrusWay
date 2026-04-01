@@ -17,7 +17,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="ru">
       <body>
-        <AppShell children={children} user={user} />
+        <AppShell user={user}>{children}</AppShell>
       </body>
     </html>
   );

@@ -14,10 +14,10 @@ type VisionJob = {
   id: string;
   status: string;
   createdAt: string;
-  output?: {
-    result?: Record<string, unknown>;
-  } | null;
+  errorMessage?: string | null;
+  output?: Record<string, unknown> | null;
 };
+type Capability = { available: boolean; modelId: string | null };
 
 const modes = [
   { id: "ocr", label: "OCR" },
@@ -35,6 +35,23 @@ export default function VisionPage() {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
+  const [activeJobId, setActiveJobId] = useState("");
+  const [capability, setCapability] = useState<Capability>({ available: false, modelId: null });
+
+  async function patchJob(jobId: string, action: "retry" | "cancel") {
+    const response = await fetch(`/api/tools/jobs/${jobId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload.error?.message || "Не удалось обновить vision job");
+      return;
+    }
+    setActiveJobId(action === "retry" ? jobId : "");
+    await loadJobs();
+  }
 
   useEffect(() => {
     void Promise.all([loadFiles(), loadJobs()]);
@@ -60,6 +77,7 @@ export default function VisionPage() {
     const payload = await response.json();
     if (response.ok) {
       setJobs(payload.data.jobs || []);
+      setCapability(payload.data.capability || { available: false, modelId: null });
     }
   }
 
@@ -84,9 +102,38 @@ export default function VisionPage() {
       return;
     }
 
-    setResult(payload.data.result || null);
-    await loadJobs();
+    setActiveJobId(payload.data.job.id);
   }
+
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        return;
+      }
+      const job = payload.data.job as VisionJob;
+      if (job.status === "SUCCEEDED") {
+        setResult((job.output?.result as Record<string, unknown>) || null);
+        setActiveJobId("");
+        await loadJobs();
+      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Vision job завершился с ошибкой");
+        setActiveJobId("");
+        await loadJobs();
+      }
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [activeJobId]);
+
+  useEffect(() => {
+    void loadJobs();
+  }, []);
 
   const selected = files.find((entry) => entry.id === selectedId) || null;
 
@@ -98,6 +145,7 @@ export default function VisionPage() {
         <p className="section-copy" style={{ maxWidth: 820 }}>
           Настоящий vision UX поверх image files: OCR, describe, screenshot analysis, chart analysis и Q&A по изображению с историей последних запросов.
         </p>
+        <div className="muted" style={{ marginTop: 12 }}>Vision model: {capability.modelId || "not available"}</div>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
 
         <div className="grid-3" style={{ marginTop: 24 }}>
@@ -145,6 +193,11 @@ export default function VisionPage() {
               <div key={job.id} className="card" style={{ padding: 16 }}>
                 <div style={{ fontWeight: 700 }}>{job.id}</div>
                 <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                </div>
               </div>
             ))}
             {jobs.length === 0 ? <div className="muted">Vision history пока пустая.</div> : null}
