@@ -7,6 +7,15 @@ type UserFileItem = { id: string; originalName: string; kind: string };
 type Project = { id: string; title: string };
 type Capability = { transcription: string | null; tts: string | null };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 export default function AudioToolPage() {
   const [mode, setMode] = useState<"transcription" | "tts">("transcription");
   const [text, setText] = useState("");
@@ -29,10 +38,10 @@ export default function AudioToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось обновить job");
+      setError(payload.error?.message || "Не удалось обновить запрос");
       return;
     }
-    setMessage(action === "retry" ? "Audio job поставлен в очередь повторно." : "Audio job отменён.");
+    setMessage(action === "retry" ? "Задание поставлено в очередь повторно." : "Задание отменено.");
     setActiveJobId(action === "retry" ? jobId : "");
     await loadJobs();
   }
@@ -83,11 +92,11 @@ export default function AudioToolPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Audio job завершился с ошибкой");
+      setError(payload.error?.message || "Задание завершилось с ошибкой");
       return;
     }
 
-    setMessage("Audio job поставлен в очередь.");
+    setMessage("Задание поставлено в очередь.");
     setActiveJobId(payload.data.job.id);
     setText("");
   }
@@ -105,11 +114,11 @@ export default function AudioToolPage() {
       }
       const job = payload.data.job as Job & { output?: { fileId?: string } };
       if (job.status === "SUCCEEDED") {
-        setMessage("Audio artifact готов.");
+        setMessage("Аудиоартефакт готов.");
         setActiveJobId("");
         await loadJobs();
       } else if (job.status === "FAILED" || job.status === "CANCELLED") {
-        setError(job.errorMessage || "Audio job завершился с ошибкой");
+        setError(job.errorMessage || "Задание завершилось с ошибкой");
         setActiveJobId("");
         await loadJobs();
       }
@@ -121,16 +130,16 @@ export default function AudioToolPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
-        <div className="badge">Audio</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Audio Pipeline</h1>
+        <div className="badge">Аудио</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Голос и аудио</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Страница даёт два режима: transcription по загруженному аудио и TTS job с сохранением результата в files/project artifacts.
+          Здесь можно расшифровать запись или подготовить озвучку текста, если этот режим доступен для выбранной модели.
         </p>
         <div className="grid-3" style={{ marginTop: 24 }}>
           <form onSubmit={onSubmit} className="card" style={{ display: "grid", gap: 12, gridColumn: "span 2" }}>
             <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" className={mode === "transcription" ? "button-primary" : "button-secondary"} onClick={() => setMode("transcription")}>Transcription</button>
-              {capability.tts ? <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>TTS</button> : null}
+              <button type="button" className={mode === "transcription" ? "button-primary" : "button-secondary"} onClick={() => setMode("transcription")}>Расшифровка</button>
+              {capability.tts ? <button type="button" className={mode === "tts" ? "button-primary" : "button-secondary"} onClick={() => setMode("tts")}>Озвучка</button> : null}
             </div>
             {mode === "transcription" ? (
               <select value={sourceFileId} onChange={(event) => setSourceFileId(event.target.value)} className="card" style={{ padding: 14 }}>
@@ -141,37 +150,36 @@ export default function AudioToolPage() {
               <textarea value={text} onChange={(event) => setText(event.target.value)} rows={7} placeholder="Текст для озвучки" className="card" style={{ padding: 14 }} />
             )}
             <div className="grid-3">
-              <input value={voice} onChange={(event) => setVoice(event.target.value)} placeholder="Voice" className="card" style={{ padding: 14 }} />
+              <input value={voice} onChange={(event) => setVoice(event.target.value)} placeholder="Голос" className="card" style={{ padding: 14 }} />
               <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="card" style={{ padding: 14 }}>
                 <option value="">Без проекта</option>
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
               </select>
-              <a className="button-secondary" href="/files">Upload audio</a>
+              <a className="button-secondary" href="/files">Загрузить аудио</a>
             </div>
             {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
             {message ? <div style={{ color: "var(--success)" }}>{message}</div> : null}
-            <div className="muted">Transcription: {capability.transcription || "n/a"} · TTS: {capability.tts || "disabled by catalog"}</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="button-primary" type="submit">Запустить job</button>
-              <a className="button-secondary" href="/documents">Открыть documents</a>
+              <button className="button-primary" type="submit">Отправить запрос</button>
+              <a className="button-secondary" href="/documents">Открыть документы</a>
             </div>
           </form>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>History</h2>
+            <h2 style={{ marginTop: 0 }}>История</h2>
             <div style={{ display: "grid", gap: 10 }}>
               {jobs.map((job) => (
                 <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · attempts {String(job.output?.attempts || 0)} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div className="muted" style={{ marginTop: 6 }}>{presentStatus(job.status)}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>
             ))}
-              {jobs.length === 0 ? <div className="muted">Audio jobs пока не запускались.</div> : null}
+              {jobs.length === 0 ? <div className="muted">Пока нет заданий.</div> : null}
             </div>
           </div>
         </div>

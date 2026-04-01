@@ -42,9 +42,9 @@ if (failed) {
 
 const contentChecks = [
   ["README.md", "RouterAI layer в `lib/routerai/*`"],
-  ["app/tools/image/page.tsx", "History"],
+  ["app/tools/image/page.tsx", "История"],
   ["app/chat/page.tsx", "Open full canvas"],
-  ["app/admin/page.tsx", "Tool Jobs"]
+  ["app/admin/page.tsx", "Задания инструментов"]
 ];
 
 for (const [rel, needle] of contentChecks) {

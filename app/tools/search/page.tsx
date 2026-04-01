@@ -120,10 +120,10 @@ export default function SearchPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
-        <div className="badge">Search</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Web Search</h1>
+        <div className="badge">Поиск</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Поиск по веб-источникам</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Поиск теперь работает не только по сниппетам: он сохраняет search sessions, citations и follow-up шаги, а deep mode тянет больше контекста со страниц.
+          Поиск сохраняет сессии, источники и уточнения по теме, а глубокий режим подтягивает больше контекста со страниц вместо одного сниппета.
         </p>
 
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 24 }}>
@@ -137,25 +137,25 @@ export default function SearchPage() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {(["fast", "standard", "deep"] as const).map((entry) => (
               <button key={entry} type="button" className={depth === entry ? "button-primary" : "button-secondary"} onClick={() => setDepth(entry)}>
-                {entry}
+                {entry === "fast" ? "Быстро" : entry === "standard" ? "Стандарт" : "Глубоко"}
               </button>
             ))}
             <label className="button-secondary" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <input type="checkbox" checked={latestOnly} onChange={(event) => setLatestOnly(event.target.checked)} />
-              latest only
+              Только свежее
             </label>
           </div>
           {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
           {actionMessage ? <div className="muted">{actionMessage}</div> : null}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button className="button-primary" type="submit" disabled={loading}>{loading ? "Ищем..." : "Найти источники"}</button>
-            <a className="button-secondary" href="/chat">Открыть chat + search</a>
+            <a className="button-secondary" href="/chat">Открыть чат с поиском</a>
           </div>
         </form>
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Sessions</h2>
+            <h2 style={{ marginTop: 0 }}>Сессии</h2>
             <div style={{ display: "grid", gap: 10 }}>
               {sessions.map((session) => (
                 <button key={session.id} type="button" className="card" onClick={() => setSelectedId(session.id)} style={{ padding: 16, textAlign: "left", background: session.id === selectedId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
@@ -168,17 +168,17 @@ export default function SearchPage() {
           </div>
 
           <div className="card" style={{ gridColumn: "span 2" }}>
-            <h2 style={{ marginTop: 0 }}>Selected result</h2>
+            <h2 style={{ marginTop: 0 }}>Выбранный результат</h2>
             {!selected ? <div className="muted">Сначала выполни запрос</div> : null}
             {selected ? (
               <div style={{ display: "grid", gap: 14 }}>
                 <div className="card" style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{selected.answer || "Сводка не сформирована"}</div>
                 <form onSubmit={onFollowUp} style={{ display: "grid", gap: 10 }}>
-                  <textarea value={followUp} onChange={(event) => setFollowUp(event.target.value)} rows={3} placeholder="Follow-up по этой же search session" className="card" style={{ padding: 14 }} />
+                  <textarea value={followUp} onChange={(event) => setFollowUp(event.target.value)} rows={3} placeholder="Уточнение по этой же поисковой сессии" className="card" style={{ padding: 14 }} />
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <button className="button-primary" type="submit" disabled={!selectedId || loading}>Запустить follow-up</button>
+                    <button className="button-primary" type="submit" disabled={!selectedId || loading}>Запустить уточнение</button>
                     <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selected.query)}`}>Создать документ</a>
-                    <button className="button-secondary" type="button" onClick={() => void openInCanvas(selected)}>Открыть в canvas</button>
+                    <button className="button-secondary" type="button" onClick={() => void openInCanvas(selected)}>Открыть в канвасе</button>
                   </div>
                 </form>
                 <div style={{ display: "grid", gap: 10 }}>
@@ -186,7 +186,7 @@ export default function SearchPage() {
                     <article key={source.id} className="card" style={{ padding: 16 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                         <div style={{ fontWeight: 700 }}>[{index + 1}] {source.title}</div>
-                        <span className="badge">{source.domain || "web source"}</span>
+                        <span className="badge">{source.domain || "веб-источник"}</span>
                       </div>
                       <div style={{ margin: "10px 0", whiteSpace: "pre-wrap" }}>{source.snippet || "Без сниппета"}</div>
                       <div className="muted" style={{ marginBottom: 10 }}>{source.url}</div>

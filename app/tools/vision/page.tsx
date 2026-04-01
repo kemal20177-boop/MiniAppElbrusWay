@@ -19,12 +19,21 @@ type VisionJob = {
 };
 type Capability = { available: boolean; modelId: string | null };
 
+function presentStatus(status: string) {
+  if (status === "PENDING") return "В очереди";
+  if (status === "RUNNING") return "В обработке";
+  if (status === "SUCCEEDED") return "Готово";
+  if (status === "FAILED") return "Ошибка";
+  if (status === "CANCELLED") return "Остановлено";
+  return status;
+}
+
 const modes = [
   { id: "ocr", label: "OCR" },
-  { id: "describe", label: "Describe" },
-  { id: "screenshot-analysis", label: "Screenshot analysis" },
-  { id: "chart-analysis", label: "Chart analysis" },
-  { id: "ask", label: "Ask about image" }
+  { id: "describe", label: "Описание" },
+  { id: "screenshot-analysis", label: "Анализ скриншота" },
+  { id: "chart-analysis", label: "Анализ графика" },
+  { id: "ask", label: "Вопрос по изображению" }
 ] as const;
 
 export default function VisionPage() {
@@ -46,7 +55,7 @@ export default function VisionPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось обновить vision job");
+      setError(payload.error?.message || "Не удалось обновить задание");
       return;
     }
     setActiveJobId(action === "retry" ? jobId : "");
@@ -98,7 +107,7 @@ export default function VisionPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось выполнить vision request");
+      setError(payload.error?.message || "Не удалось выполнить анализ изображения");
       return;
     }
 
@@ -122,7 +131,7 @@ export default function VisionPage() {
         setActiveJobId("");
         await loadJobs();
       } else if (job.status === "FAILED" || job.status === "CANCELLED") {
-        setError(job.errorMessage || "Vision job завершился с ошибкой");
+        setError(job.errorMessage || "Задание завершилось с ошибкой");
         setActiveJobId("");
         await loadJobs();
       }
@@ -140,17 +149,16 @@ export default function VisionPage() {
   return (
     <main className="workspace-page">
       <section className="panel workspace-panel">
-        <div className="badge">Vision</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>AI Vision</h1>
+        <div className="badge">Зрение</div>
+        <h1 className="section-title" style={{ marginTop: 16 }}>Анализ изображений</h1>
         <p className="section-copy" style={{ maxWidth: 820 }}>
-          Настоящий vision UX поверх image files: OCR, describe, screenshot analysis, chart analysis и Q&A по изображению с историей последних запросов.
+          Загрузи изображение, получи текст с картинки, краткое описание, разбор скриншота, графика или ответ на конкретный вопрос.
         </p>
-        <div className="muted" style={{ marginTop: 12 }}>Vision model: {capability.modelId || "not available"}</div>
         {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
 
         <div className="grid-3" style={{ marginTop: 24 }}>
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Image library</h2>
+            <h2 style={{ marginTop: 0 }}>Библиотека изображений</h2>
             <div style={{ display: "grid", gap: 10 }}>
               {files.map((file) => (
                 <button key={file.id} type="button" className="card" onClick={() => setSelectedId(file.id)} style={{ padding: 16, textAlign: "left", background: file.id === selectedId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
@@ -158,12 +166,12 @@ export default function VisionPage() {
                   <div className="muted" style={{ marginTop: 6 }}>{file.mimeType}</div>
                 </button>
               ))}
-              {files.length === 0 ? <div className="muted">Сначала загрузи изображения в Files.</div> : null}
+              {files.length === 0 ? <div className="muted">Сначала загрузи изображения в файлы.</div> : null}
             </div>
           </div>
 
           <div className="card" style={{ gridColumn: "span 2" }}>
-            <h2 style={{ marginTop: 0 }}>Run vision</h2>
+            <h2 style={{ marginTop: 0 }}>Запуск анализа</h2>
             {!selected ? <div className="muted">Выбери изображение</div> : null}
             {selected ? (
               <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
@@ -177,30 +185,30 @@ export default function VisionPage() {
                 </div>
                 {mode === "ask" ? <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={4} placeholder="Что нужно понять по изображению?" className="card" style={{ padding: 14 }} /> : null}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button className="button-primary" type="submit">Запустить vision</button>
-                  <a className="button-secondary" href="/files">Открыть files hub</a>
+                  <button className="button-primary" type="submit">Запустить анализ</button>
+                  <a className="button-secondary" href="/files">Открыть файлы</a>
                 </div>
-                <pre className="card" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{result ? JSON.stringify(result, null, 2) : "Structured result появится здесь."}</pre>
+                <pre className="card" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{result ? JSON.stringify(result, null, 2) : "Структурированный результат появится здесь."}</pre>
               </form>
             ) : null}
           </div>
         </div>
 
         <div className="card" style={{ marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>History</h2>
+          <h2 style={{ marginTop: 0 }}>История</h2>
           <div style={{ display: "grid", gap: 10 }}>
             {jobs.map((job) => (
               <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>{job.id}</div>
-                <div className="muted" style={{ marginTop: 6 }}>{job.status} · {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
+                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
                 {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Cancel</button> : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Retry</button> : null}
+                  <span className="badge">{presentStatus(job.status)}</span>
+                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
+                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
                 </div>
               </div>
             ))}
-            {jobs.length === 0 ? <div className="muted">Vision history пока пустая.</div> : null}
+            {jobs.length === 0 ? <div className="muted">Пока нет запусков.</div> : null}
           </div>
         </div>
       </section>

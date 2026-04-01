@@ -21,7 +21,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
             <div className="brand-mark">E</div>
             <div>
               <div className="brand-title">{siteConfig.name}</div>
-              <div className="muted brand-copy">AI workspace без барьеров</div>
+              <div className="muted brand-copy">Премиальный доступ к нейросетям в одном кабинете</div>
             </div>
           </Link>
           <nav className="topbar-nav">
@@ -34,14 +34,17 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
             <Link href="/rates" className="muted">
               Тарифы
             </Link>
+            <Link href="/tools/image" className="muted">
+              Изображения
+            </Link>
             {user ? (
               <>
                 <div className="topbar-user">
                   <div style={{ fontWeight: 700 }}>{user.name || user.email}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{user.role}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{user.role === "ADMIN" ? "Администратор" : "Аккаунт"}</div>
                 </div>
                 <Link href="/profile" className="button-secondary">
-                  Кабинет
+                  Аккаунт
                 </Link>
               </>
             ) : (

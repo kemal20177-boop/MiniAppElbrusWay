@@ -95,18 +95,18 @@ export default function ProjectDetailsPage({ params }: { params: { id: string } 
           </form>
 
           <div className="card">
-            <h2 style={{ marginTop: 0 }}>Overview</h2>
+            <h2 style={{ marginTop: 0 }}>Обзор</h2>
             <div className="muted">Чаты: {String((project?._count as Record<string, unknown> | undefined)?.chats || 0)}</div>
             <div className="muted">Файлы: {String((project?._count as Record<string, unknown> | undefined)?.files || 0)}</div>
             <div className="muted">Документы: {String((project?._count as Record<string, unknown> | undefined)?.documents || 0)}</div>
-            <div className="muted">Canvas: {String((project?._count as Record<string, unknown> | undefined)?.canvasDocs || 0)}</div>
-            <div className="muted">Search sessions: {String((project?._count as Record<string, unknown> | undefined)?.searchSessions || 0)}</div>
+            <div className="muted">Канвас: {String((project?._count as Record<string, unknown> | undefined)?.canvasDocs || 0)}</div>
+            <div className="muted">Поисковые сессии: {String((project?._count as Record<string, unknown> | undefined)?.searchSessions || 0)}</div>
           </div>
 
           <div className="card">
             <h2 style={{ marginTop: 0 }}>Инструкции</h2>
             <div style={{ display: "grid", gap: 8 }}>
-              {instructions.length === 0 ? <div className="muted">Пока нет project instructions</div> : null}
+              {instructions.length === 0 ? <div className="muted">Пока нет инструкций проекта</div> : null}
               {instructions.map((entry) => (
                 <div key={String((entry as Record<string, unknown>).id)} className="muted">
                   {String((entry as Record<string, unknown>).title || "...")}

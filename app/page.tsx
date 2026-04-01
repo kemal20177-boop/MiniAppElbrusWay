@@ -7,24 +7,25 @@ export default async function HomePage() {
   const models = await getModels();
   const featuredModels = models.slice(0, 8);
   const curated = await getCuratedModelSections();
+  const dailyModels = ((curated.sections.fast as typeof featuredModels) || featuredModels).slice(0, 4);
 
   return (
     <main className="shell" style={{ padding: "18px 0 56px" }}>
       <section
         className="panel"
         style={{
-          padding: "56px 28px",
+          padding: "64px 34px",
           overflow: "hidden",
           position: "relative",
           marginBottom: 28
         }}
       >
-        <div className="badge">RouterAI-powered AI Workspace</div>
+        <div className="badge">ElbrusWay AI</div>
         <div style={{ maxWidth: 760, paddingTop: 20 }}>
-          <h1 className="section-title">Один AI workspace для чатов, файлов, документов и мультимодальных моделей без VPN.</h1>
+          <h1 className="section-title">Все главные нейросети в одном кабинете для работы, идей и повседневных задач.</h1>
           <p className="section-copy">
-            ElbrusWay AI объединяет ChatGPT, Claude, Gemini, Grok, image и vision-модели через RouterAI API.
-            Пользователь платит в рублях, работает в проектах, хранит файлы, превращает ответы в документы и управляет всем из одного кабинета.
+            Общайся с сильными моделями, собирай документы, создавай изображения, ищи информацию и храни материалы проекта
+            в одном понятном сервисе. Без лишней настройки, без скачков между разными приложениями и с оплатой в рублях.
           </p>
         </div>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 28 }}>
@@ -37,10 +38,10 @@ export default async function HomePage() {
         </div>
         <div className="grid-4" style={{ marginTop: 36 }}>
           {[
-            ["Top models", "ChatGPT, Claude, Gemini, Grok, Nano Banana"],
-            ["Workspace", "Chat, Files, Documents, Canvas, Projects"],
-            ["Multimodal", "Image, Vision, Audio, Search, PDF"],
-            ["Ops", "Admin, audit logs, jobs, billing, limits"]
+            ["Все в одном месте", "Чат, документы, изображения, поиск, файлы и проекты"],
+            ["Для работы и жизни", "От коротких вопросов до сложных материалов и идей"],
+            ["Понятный интерфейс", "Ничего лишнего на первом экране и быстрый переход к результату"],
+            ["Оплата без сложностей", "Личные тарифы и удобный кабинет с историей и управлением"]
           ].map(([label, value]) => (
             <div key={label} className="card">
               <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
@@ -53,11 +54,12 @@ export default async function HomePage() {
       </section>
 
       <section style={{ padding: "24px 0 18px" }}>
-        <div className="grid-3" style={{ marginBottom: 24 }}>
+        <div className="grid-4" style={{ marginBottom: 24 }}>
           {[
-            ["Top chat", curated.sections.top_chat],
-            ["Top image", curated.sections.top_image],
-            ["Reasoning", curated.sections.reasoning]
+            ["Лучшие модели для чата", curated.sections.top_chat],
+            ["Лучшие модели для изображений", curated.sections.top_image],
+            ["Лучшие для сложных задач", curated.sections.reasoning],
+            ["Для повседневной работы", dailyModels]
           ].map(([label, items]) => (
             <div key={String(label)} className="card">
               <div className="badge">{String(label)}</div>
@@ -73,11 +75,11 @@ export default async function HomePage() {
         </div>
         <div className="badge">Модели</div>
         <h2 className="section-title" style={{ marginTop: 16 }}>
-          Каталог AI-моделей
+          Подборка популярных моделей
         </h2>
         <p className="section-copy" style={{ maxWidth: 760 }}>
-          Проект подключён к живому каталогу RouterAI и может работать с {models.length} текстовыми моделями и
-          мультимодальными вариантами без ручного хардкода списка.
+          Внутри уже доступно {models.length} моделей для общения, анализа, изображений и ежедневной работы.
+          Ты выбираешь задачу, а не разбираешься в технических слоях.
         </p>
         <div className="grid-4">
           {featuredModels.map((model) => (
@@ -85,16 +87,13 @@ export default async function HomePage() {
               <div className="muted" style={{ fontSize: 13 }}>{model.provider}</div>
               <h3 style={{ margin: "10px 0 8px", fontSize: 24 }}>{model.name}</h3>
               <p className="muted" style={{ minHeight: 72 }}>
-                Контекст: {model.contextLength?.toLocaleString("ru-RU") || "n/a"} · In:{" "}
-                {typeof model.pricing?.prompt === "number" ? `${(model.pricing.prompt * 1_000_000).toFixed(2)} ₽/1M` : "n/a"} ·
-                Out:{" "}
-                {typeof model.pricing?.completion === "number"
-                  ? `${(model.pricing.completion * 1_000_000).toFixed(2)} ₽/1M`
-                  : "n/a"}
+                {model.supportsImages
+                  ? "Подходит для текста, изображений и мультимодальных задач."
+                  : "Подходит для общения, текстов, идей и повседневной работы."}
               </p>
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 18 }}>
-                <span className="badge">{model.supportsImages ? "Мультимодальная" : "Текст"}</span>
-                <span className="mono muted" style={{ fontSize: 12 }}>{model.id}</span>
+                <span className="badge">{model.supportsImages ? "Изображения и текст" : "Текст и диалог"}</span>
+                <span className="muted" style={{ fontSize: 12 }}>до {model.contextLength?.toLocaleString("ru-RU") || "—"} токенов контекста</span>
               </div>
             </article>
           ))}
@@ -103,13 +102,13 @@ export default async function HomePage() {
 
       <section style={{ padding: "32px 0 18px" }}>
         <div className="badge">Почему ElbrusWay</div>
-        <h2 className="section-title" style={{ marginTop: 16 }}>Сервис ощущается как finished SaaS, а не как dev console</h2>
+        <h2 className="section-title" style={{ marginTop: 16 }}>Сервис собран вокруг пользы, а не вокруг технических деталей</h2>
         <div className="grid-4">
           {[
-            ["Projects-first", "Проекты держат вместе чаты, файлы, документы, canvas и search sessions."],
-            ["RouterAI native", "Каталог моделей, multimodal input и image generation идут через RouterAI API."],
-            ["Документы из чата", "Ответ можно превратить в документ и открыть в canvas без копипаста."],
-            ["Control center", "Админка показывает jobs, storage, workspace-сущности и состояния ошибок."]
+            ["Один кабинет", "Все основные сценарии собраны в одном месте: чат, файлы, документы, редактор и поиск."],
+            ["Быстрый путь к результату", "Ответы легко превращаются в документы, изображения и материалы по проектам."],
+            ["Аккуратная подача", "Интерфейс не перегружает деталями и не требует разбираться в служебных терминах."],
+            ["Удобно для роста", "Сервис одинаково подходит для личной работы, команды и более интенсивного использования."]
           ].map(([title, text]) => (
             <article key={String(title)} className="card">
               <h3 style={{ marginTop: 0 }}>{title}</h3>
@@ -122,7 +121,7 @@ export default async function HomePage() {
       <section style={{ padding: "32px 0 18px" }}>
         <div className="badge">Тарифы</div>
         <h2 className="section-title" style={{ marginTop: 16 }}>
-          Тарифы для работы, команды и heavy usage
+          Тарифы для личной работы, команды и интенсивного использования
         </h2>
         <div className="grid-4">
           {planCatalog.map((plan) => (

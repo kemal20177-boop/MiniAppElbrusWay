@@ -154,7 +154,7 @@ export default function DocumentsPage() {
 
         {activeDocument ? (
           <div className="card" style={{ marginTop: 24 }}>
-            <h2 style={{ marginTop: 0 }}>Sections</h2>
+            <h2 style={{ marginTop: 0 }}>Разделы</h2>
             <div style={{ display: "grid", gap: 12 }}>
               {sections.map((section) => (
                 <div key={section.key} className="card" style={{ padding: 14 }}>
@@ -163,16 +163,16 @@ export default function DocumentsPage() {
                     <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
                       <textarea value={editingContent} onChange={(event) => setEditingContent(event.target.value)} rows={10} className="card" style={{ padding: 14 }} />
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button className="button-primary" type="button" onClick={() => void saveSection(activeDocument.id, section.key)}>Save</button>
-                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(""); setEditingContent(""); }}>Cancel</button>
+                        <button className="button-primary" type="button" onClick={() => void saveSection(activeDocument.id, section.key)}>Сохранить</button>
+                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(""); setEditingContent(""); }}>Отменить</button>
                       </div>
                     </div>
                   ) : (
                     <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
                       <div className="card" style={{ whiteSpace: "pre-wrap" }}>{section.content}</div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(section.key); setEditingContent(section.content); }}>Edit section</button>
-                        <button className="button-secondary" type="button" onClick={() => void regenerateSection(activeDocument.id, section)}>Regenerate section</button>
+                        <button className="button-secondary" type="button" onClick={() => { setEditingSectionKey(section.key); setEditingContent(section.content); }}>Редактировать раздел</button>
+                        <button className="button-secondary" type="button" onClick={() => void regenerateSection(activeDocument.id, section)}>Перегенерировать раздел</button>
                       </div>
                     </div>
                   )}

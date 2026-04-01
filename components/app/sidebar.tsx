@@ -12,24 +12,27 @@ type SidebarItem = {
 };
 
 const primaryItems: SidebarItem[] = [
-  { href: "/chat", label: "Чат", icon: "AI" },
-  { href: "/projects", label: "Проекты", icon: "PJ" },
-  { href: "/files", label: "Файлы", icon: "FL" },
-  { href: "/documents", label: "Документы", icon: "DC" },
-  { href: "/canvas", label: "Canvas", icon: "CV" },
-  { href: "/rates", label: "Тарифы", icon: "₽" },
-  { href: "/profile", label: "Профиль", icon: "ME" },
-  { href: "/settings", label: "Настройки", icon: "ST" },
-  { href: "/admin", label: "Админка", icon: "AD", requiresAdmin: true }
+  { href: "/chat", label: "Чат", icon: "✦" },
+  { href: "/projects", label: "Проекты", icon: "▥" },
+  { href: "/files", label: "Файлы", icon: "◨" },
+  { href: "/documents", label: "Документы", icon: "✎" },
+  { href: "/canvas", label: "Редактор", icon: "◇" },
 ];
 
-const toolItems: SidebarItem[] = [
-  { href: "/tools/vision", label: "Vision", icon: "VS" },
-  { href: "/tools/search", label: "Search", icon: "WS" },
-  { href: "/tools/documents", label: "Docs", icon: "DP" },
-  { href: "/tools/image", label: "Image", icon: "IM" },
-  { href: "/tools/video", label: "Video", icon: "VD" },
-  { href: "/tools/audio", label: "Audio", icon: "AU" }
+const featureItems: SidebarItem[] = [
+  { href: "/rates", label: "Тарифы", icon: "₽" },
+  { href: "/tools/vision", label: "Анализ изображений", icon: "◌" },
+  { href: "/tools/search", label: "Поиск", icon: "⌕" },
+  { href: "/tools/documents", label: "Документы", icon: "✎" },
+  { href: "/tools/image", label: "Изображения", icon: "◐" },
+  { href: "/tools/video", label: "Видео", icon: "▷" },
+  { href: "/tools/audio", label: "Аудио", icon: "◍" }
+];
+
+const accountItems: SidebarItem[] = [
+  { href: "/profile", label: "Аккаунт", icon: "◉" },
+  { href: "/settings", label: "Настройки", icon: "⋯" },
+  { href: "/admin", label: "Админка", icon: "⚙", requiresAdmin: true }
 ];
 
 function ItemLink({ item, pathname }: { item: SidebarItem; pathname: string }) {
@@ -64,19 +67,25 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   return (
     <aside className="sidebar panel">
       <div>
-        <div className="sidebar-title">Workspace</div>
+        <div className="sidebar-title">Рабочее пространство</div>
         <div className="sidebar-group">
           {primaryItems.filter((item) => !item.requiresAdmin || isAdmin).map((item) => <ItemLink key={item.href} item={item} pathname={pathname} />)}
         </div>
       </div>
       <div>
-        <div className="sidebar-title">Tools</div>
+        <div className="sidebar-title">Возможности</div>
         <div className="sidebar-group">
-          {toolItems.map((item) => <ItemLink key={item.href} item={item} pathname={pathname} />)}
+          {featureItems.map((item) => <ItemLink key={item.href} item={item} pathname={pathname} />)}
+        </div>
+      </div>
+      <div>
+        <div className="sidebar-title">Аккаунт</div>
+        <div className="sidebar-group">
+          {accountItems.filter((item) => !item.requiresAdmin || isAdmin).map((item) => <ItemLink key={item.href} item={item} pathname={pathname} />)}
         </div>
       </div>
       <button type="button" className="button-ghost" onClick={() => void logout()} disabled={loading}>
-        {loading ? "Выход..." : "Logout"}
+        {loading ? "Выход..." : "Выйти"}
       </button>
     </aside>
   );
