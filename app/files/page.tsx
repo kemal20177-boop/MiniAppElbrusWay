@@ -19,23 +19,51 @@ type UserFileItem = {
 type Project = { id: string; title: string };
 type Chat = { id: string; title: string };
 
+function formatKind(kind: string) {
+  if (kind === "DOCUMENT") return "Документ";
+  if (kind === "IMAGE") return "Изображение";
+  if (kind === "AUDIO") return "Аудио";
+  if (kind === "VIDEO") return "Видео";
+  if (kind === "DATA") return "Данные";
+  return "Файл";
+}
+
 export default function FilesPage() {
   const [files, setFiles] = useState<UserFileItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<UserFileItem | null>(null);
-  const [tab, setTab] = useState<"info" | "content" | "analysis" | "chunks">("info");
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [progressText, setProgressText] = useState("");
+  const [message, setMessage] = useState("");
   const [projectTarget, setProjectTarget] = useState("");
   const [chatTarget, setChatTarget] = useState("");
 
   useEffect(() => {
-    void Promise.all([loadFiles(), loadProjects(), loadChats()]);
+    void (async () => {
+      const [filesResponse, projectsResponse, chatsResponse] = await Promise.all([
+        fetch("/api/files"),
+        fetch("/api/projects"),
+        fetch("/api/chats")
+      ]);
+      const [filesPayload, projectsPayload, chatsPayload] = await Promise.all([
+        filesResponse.json(),
+        projectsResponse.json(),
+        chatsResponse.json()
+      ]);
+      if (filesResponse.ok) {
+        setFiles(filesPayload.data.files || []);
+      }
+      if (projectsResponse.ok) {
+        setProjects(projectsPayload.data.projects || []);
+      }
+      if (chatsResponse.ok) {
+        setChats(chatsPayload.data.chats || []);
+      }
+    })();
   }, []);
 
   async function loadFiles() {
@@ -71,24 +99,29 @@ export default function FilesPage() {
 
   async function uploadMany(fileList: FileList | File[]) {
     setUploading(true);
-    setProgressText(`Uploading ${Array.from(fileList).length} files...`);
     setError("");
+    setMessage("");
     const formData = new FormData();
     Array.from(fileList).forEach((file) => formData.append("files", file));
     const response = await fetch("/api/files", { method: "POST", body: formData });
     const payload = await response.json();
     setUploading(false);
-    setProgressText("");
     if (!response.ok) {
       setError(payload.error?.message || "Не удалось загрузить файлы");
       return;
     }
+    setMessage(`Загружено файлов: ${payload.data.files?.length || 0}`);
     await loadFiles();
   }
 
   async function runAnalysis(fileId: string) {
-    const response = await fetch(`/api/files/${fileId}/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "summary" }) });
+    const response = await fetch(`/api/files/${fileId}/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "summary" })
+    });
     if (response.ok) {
+      setMessage("Файл проанализирован");
       await openFile(fileId);
       await loadFiles();
     }
@@ -107,9 +140,10 @@ export default function FilesPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось выполнить bulk action");
+      setError(payload.error?.message || "Не удалось выполнить действие");
       return;
     }
+    setMessage("Действие выполнено");
     await loadFiles();
   }
 
@@ -121,94 +155,153 @@ export default function FilesPage() {
   }
 
   const filtered = useMemo(() => files, [files]);
-  const analysis = selectedFile?.metadata?.analysis as Record<string, unknown> | undefined;
 
   return (
-    <main className="workspace-page">
-      <section className="panel workspace-panel" onDrop={onDrop} onDragOver={(event) => event.preventDefault()}>
-        <div className="badge">Файлы</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Центр файлов</h1>
-        <p className="section-copy" style={{ maxWidth: 820 }}>
-          Здесь работают массовая загрузка, drag-and-drop, предпросмотр, анализ и быстрые действия для привязки файлов к чату или проекту.
-        </p>
+    <div className="page-stack">
+      <section className="surface" onDrop={onDrop} onDragOver={(event) => event.preventDefault()}>
+        <div className="eyebrow">Файлы</div>
+        <h1 className="surface-title">Все загруженные материалы в одном месте.</h1>
+        <p className="surface-copy">Здесь можно загрузить файлы, быстро найти нужный, открыть содержимое и отправить материал в чат или проект.</p>
+      </section>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
-          <label className="button-primary" style={{ cursor: "pointer" }}>
-            {uploading ? "Загрузка..." : "Загрузить файлы"}
-            <input type="file" hidden multiple onChange={(event: ChangeEvent<HTMLInputElement>) => { if (event.target.files?.length) void uploadMany(event.target.files); }} />
-          </label>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по файлам" style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }} />
-          <select value={kind} onChange={(event) => setKind(event.target.value)} style={{ minHeight: 42, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-            <option value="">Все типы</option>
-            {["DOCUMENT", "IMAGE", "DATA", "AUDIO", "VIDEO", "OTHER"].map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-          </select>
-          <button className="button-secondary" type="button" onClick={() => void loadFiles()}>Применить</button>
-          <a className="button-secondary" href="/tools/vision">Зрение</a>
-        </div>
+      <div className="content-grid two-columns">
+        <section className="surface">
+          <div className="toolbar-row">
+            <label className="button-primary" style={{ cursor: "pointer" }}>
+              {uploading ? "Загружаем..." : "Загрузить файлы"}
+              <input
+                type="file"
+                hidden
+                multiple
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  if (event.target.files?.length) void uploadMany(event.target.files);
+                }}
+              />
+            </label>
+            <a href="/tools/vision" className="button-secondary">
+              Анализ изображений
+            </a>
+          </div>
+          <div className="content-grid two-columns" style={{ marginTop: 16 }}>
+            <label className="field">
+              <span>Поиск</span>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название или фрагмент текста" />
+            </label>
+            <label className="field">
+              <span>Тип</span>
+              <select value={kind} onChange={(event) => setKind(event.target.value)}>
+                <option value="">Все</option>
+                {["DOCUMENT", "IMAGE", "DATA", "AUDIO", "VIDEO", "OTHER"].map((entry) => (
+                  <option key={entry} value={entry}>
+                    {formatKind(entry)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="toolbar-row" style={{ marginTop: 14 }}>
+            <button className="button-secondary" type="button" onClick={() => void loadFiles()}>
+              Обновить список
+            </button>
+            <span className="muted-text">Можно просто перетащить файлы на экран.</span>
+          </div>
+          {error ? <div className="error-banner" style={{ marginTop: 16 }}>{error}</div> : null}
+          {message ? <div className="success-banner" style={{ marginTop: 16 }}>{message}</div> : null}
 
-        <div style={{ marginTop: 12 }} className="muted">{progressText || "Перетащи файлы на страницу для загрузки."}</div>
-        {error ? <div style={{ color: "var(--error)", marginTop: 14 }}>{error}</div> : null}
-
-        <div className="grid-3" style={{ marginTop: 24 }}>
-          <div className="card" style={{ display: "grid", gap: 12 }}>
-            <h2 style={{ margin: 0 }}>Файлы</h2>
+          <div className="status-list" style={{ marginTop: 18 }}>
             {filtered.map((file) => (
-              <div key={file.id} className="card" style={{ padding: 14, background: selectedFile?.id === file.id ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
-                <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <input type="checkbox" checked={selectedIds.includes(file.id)} onChange={(event) => setSelectedIds((prev) => event.target.checked ? [...prev, file.id] : prev.filter((entry) => entry !== file.id))} />
-                  <button type="button" onClick={() => void openFile(file.id)} style={{ all: "unset", cursor: "pointer" }}>
-                    <div style={{ fontWeight: 700 }}>{file.originalName}</div>
-                    <div className="muted" style={{ marginTop: 6 }}>{file.kind} · {file.status}</div>
+              <article key={file.id} className="status-card">
+                <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(file.id)}
+                    onChange={(event) =>
+                      setSelectedIds((prev) => (event.target.checked ? [...prev, file.id] : prev.filter((entry) => entry !== file.id)))
+                    }
+                  />
+                  <button type="button" onClick={() => void openFile(file.id)} style={{ all: "unset", cursor: "pointer", display: "grid", gap: 6, width: "100%" }}>
+                    <strong>{file.originalName}</strong>
+                    <span className="muted-text">
+                      {formatKind(file.kind)} · {file.status.toLowerCase()} · {new Date(file.createdAt).toLocaleString("ru-RU")}
+                    </span>
                   </button>
                 </label>
-              </div>
+              </article>
             ))}
+            {filtered.length === 0 ? <div className="muted-text">Файлов пока нет.</div> : null}
           </div>
+        </section>
 
-          <div className="card" style={{ gridColumn: "span 2" }}>
-            {!selectedFile ? <div className="muted">Выбери файл слева</div> : (
-              <div style={{ display: "grid", gap: 14 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 20 }}>{selectedFile.originalName}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{selectedFile.mimeType} · {selectedFile.kind} · {new Date(selectedFile.createdAt).toLocaleString("ru-RU")}</div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {(["info", "content", "analysis", "chunks"] as const).map((entry) => (
-                    <button key={entry} className={tab === entry ? "button-primary" : "button-secondary"} type="button" onClick={() => setTab(entry)}>{entry === "info" ? "Инфо" : entry === "content" ? "Содержимое" : entry === "analysis" ? "Анализ" : "Чанки"}</button>
-                  ))}
-                  <button className="button-secondary" type="button" onClick={() => void runAnalysis(selectedFile.id)}>Проанализировать</button>
-                  <a className="button-secondary" href={`/tools/vision`}>Открыть в зрении</a>
-                  <a className="button-secondary" href="/canvas">Открыть в канвасе</a>
-                  <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selectedFile.originalName)}`}>Создать документ</a>
-                </div>
-                <div className="card" style={{ whiteSpace: "pre-wrap", maxHeight: 420, overflow: "auto" }}>
-                  {tab === "info" ? JSON.stringify({ id: selectedFile.id, status: selectedFile.status, sizeBytes: selectedFile.sizeBytes, metadata: selectedFile.metadata }, null, 2) : null}
-                  {tab === "content" ? selectedFile.extractedText || "Предпросмотр текста недоступен" : null}
-                  {tab === "analysis" ? JSON.stringify(analysis || {}, null, 2) : null}
-                  {tab === "chunks" ? JSON.stringify(selectedFile.chunks || [], null, 2) : null}
-                </div>
+        <section className="surface">
+          {!selectedFile ? (
+            <div className="muted-text">Выберите файл слева, чтобы посмотреть содержимое и быстрые действия.</div>
+          ) : (
+            <div className="section-stack">
+              <div>
+                <div className="eyebrow">Выбранный файл</div>
+                <h2 className="surface-title">{selectedFile.originalName}</h2>
+                <p className="surface-copy">
+                  {formatKind(selectedFile.kind)} · {selectedFile.mimeType} · {new Date(selectedFile.createdAt).toLocaleString("ru-RU")}
+                </p>
               </div>
-            )}
-          </div>
-        </div>
+              <div className="toolbar-row">
+                <button className="button-secondary" type="button" onClick={() => void runAnalysis(selectedFile.id)}>
+                  Обновить анализ
+                </button>
+                <a className="button-secondary" href="/canvas">
+                  Открыть в редакторе
+                </a>
+                <a className="button-secondary" href={`/tools/documents?query=${encodeURIComponent(selectedFile.originalName)}`}>
+                  Создать документ
+                </a>
+              </div>
+              <div className="status-card" style={{ whiteSpace: "pre-wrap", maxHeight: 360, overflow: "auto" }}>
+                {selectedFile.extractedText || "Для этого файла пока нет текстового предпросмотра."}
+              </div>
+            </div>
+          )}
 
-        <div className="card" style={{ marginTop: 24 }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <strong>Групповые действия</strong>
-            <select value={projectTarget} onChange={(event) => setProjectTarget(event.target.value)} style={{ minHeight: 40, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-              <option value="">Выбери проект</option>
-              {projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
-            </select>
-            <select value={chatTarget} onChange={(event) => setChatTarget(event.target.value)} style={{ minHeight: 40, borderRadius: 12, padding: "0 12px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)" }}>
-              <option value="">Выбери чат</option>
-              {chats.map((chat) => <option key={chat.id} value={chat.id}>{chat.title}</option>)}
-            </select>
-            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("attachToChat")}>Прикрепить к чату</button>
-            <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("addToProject")}>Добавить в проект</button>
-            <button className="button-ghost" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("delete")}>Удалить</button>
+          <div className="section-stack" style={{ marginTop: 18 }}>
+            <div>
+              <div className="eyebrow">Групповые действия</div>
+              <h2 className="surface-title">Работа с выбранными файлами</h2>
+            </div>
+            <label className="field">
+              <span>Проект</span>
+              <select value={projectTarget} onChange={(event) => setProjectTarget(event.target.value)}>
+                <option value="">Выберите проект</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Чат</span>
+              <select value={chatTarget} onChange={(event) => setChatTarget(event.target.value)}>
+                <option value="">Выберите чат</option>
+                {chats.map((chat) => (
+                  <option key={chat.id} value={chat.id}>
+                    {chat.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="toolbar-row">
+              <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("attachToChat")}>
+                Добавить в чат
+              </button>
+              <button className="button-secondary" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("addToProject")}>
+                Добавить в проект
+              </button>
+              <button className="button-ghost" type="button" disabled={!selectedIds.length} onClick={() => void bulkAction("delete")}>
+                Удалить
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </div>
+    </div>
   );
 }

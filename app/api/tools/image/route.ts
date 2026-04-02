@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       take: 20
     });
     const model = await getPreferredRouterModel({ forImageOutput: true });
-    return apiSuccess({ jobs, capability: { available: Boolean(model), modelId: model?.id || null } });
+    return apiSuccess({ jobs, setup: { ready: Boolean(model) } });
   } catch (error) {
     return apiError("IMAGE_LIST_FAILED", resolveErrorMessage(error), 400);
   }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const payload = toolImageSchema.parse(body);
     const model = await getPreferredRouterModel({ forImageOutput: true });
     if (!model) {
-      return apiError("IMAGE_MODEL_UNAVAILABLE", "RouterAI каталог не вернул доступную image model", 400);
+      return apiError("IMAGE_MODEL_UNAVAILABLE", "Генерация изображений сейчас недоступна", 400);
     }
     const job = await createToolJob({
       userId: user.id,
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     });
 
     queueToolJob(job.id);
-    return apiSuccess({ job, modelId: model.id }, { status: 202 });
+    return apiSuccess({ job }, { status: 202 });
   } catch (error) {
     return apiError("IMAGE_GENERATE_FAILED", resolveErrorMessage(error), 400);
   }

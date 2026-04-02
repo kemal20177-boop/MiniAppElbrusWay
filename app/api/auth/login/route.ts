@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { ZodError } from "zod";
 import { createSession, sanitizeUser, sessionCookieName } from "@/lib/auth";
 import { loginSchema } from "@/lib/validators";
 import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
+
+function resolveLoginError(error: unknown) {
+  if (error instanceof ZodError) {
+    return error.issues[0]?.message || "Проверьте email и пароль";
+  }
+  if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
+    return "Неверный email или пароль";
+  }
+  return error instanceof Error ? error.message : "Не удалось войти";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +62,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     return NextResponse.json(
-      { ok: false, error: "LOGIN_FAILED", message: (error as Error).message },
+      { ok: false, error: "LOGIN_FAILED", message: resolveLoginError(error) },
       { status: 400 }
     );
   }

@@ -7,7 +7,7 @@ export async function generateVideoArtifact(params: {
   durationSec: number;
 }) {
   const response = await runTextProvider({
-    system: "Ты video planning assistant. RouterAI каталог не подтверждает video output, поэтому верни production-ready storyboard или video task spec без имитации готового видео.",
+    system: "Ты ассистент по подготовке видеопроекта. Верни понятный сториборд или постановку задачи для съёмки и монтажа. Не имитируй готовый видеофайл.",
     prompt: `Mode: ${params.mode}\nDuration: ${params.durationSec}s\nPrompt:\n${params.prompt}`,
     maxTokens: 1000
   });
@@ -16,8 +16,7 @@ export async function generateVideoArtifact(params: {
     mimeType: "text/markdown",
     content: response.text || params.prompt,
     metadata: {
-      provider: "routerai-beta",
-      providerMode: "capability-limited",
+      flow: "video-planning",
       mode: params.mode,
       durationSec: params.durationSec
     }

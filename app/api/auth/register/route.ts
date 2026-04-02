@@ -1,10 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { ZodError } from "zod";
 import { createSession, sanitizeUser, sessionCookieName } from "@/lib/auth";
 import { registerSchema } from "@/lib/validators";
 import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
 import { ensureReferralProgram, generateReferralCode, resolveReferrerByCode } from "@/lib/billing";
+
+function resolveRegisterError(error: unknown) {
+  if (error instanceof ZodError) {
+    return error.issues[0]?.message || "Проверьте данные формы";
+  }
+  if (!(error instanceof Error)) {
+    return "Регистрация не удалась";
+  }
+  if (error.message === "EMAIL_ALREADY_EXISTS") {
+    return "Email уже используется";
+  }
+  if (error.message === "REFERRAL_CODE_NOT_FOUND") {
+    return "Реферальный код не найден";
+  }
+  return error.message;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,7 +100,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     return NextResponse.json(
-      { ok: false, error: "REGISTER_FAILED", message: (error as Error).message },
+      { ok: false, error: "REGISTER_FAILED", message: resolveRegisterError(error) },
       { status: 400 }
     );
   }

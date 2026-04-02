@@ -16,7 +16,14 @@ export async function GET(request: NextRequest) {
       take: 20
     });
     const model = await getPreferredRouterModel({ forVideoInput: true });
-    return apiSuccess({ jobs, capability: { videoAnalysis: model?.id || null, generation: false, beta: true } });
+    return apiSuccess({
+      jobs,
+      setup: {
+        mode: "planning",
+        videoGenerationReady: false,
+        planningModelReady: Boolean(model)
+      }
+    });
   } catch (error) {
     return apiError("VIDEO_LIST_FAILED", resolveErrorMessage(error), 400);
   }

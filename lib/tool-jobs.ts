@@ -5,9 +5,14 @@ import { writeAuditLog } from "@/lib/audit";
 import { createArtifactFileForUser, getFileForUser } from "@/lib/files";
 import { generateImageArtifact, generateVideoArtifact, runVisionProvider, synthesizeSpeechArtifact, transcribeAudioArtifact } from "@/lib/providers";
 import { buildToolJobMeta, getToolJobMeta, shouldRetryJob } from "@/lib/tool-job-utils";
-import { getPreferredRouterModel } from "@/lib/routerai/models";
+import { findRouterModelConfig, getPreferredRouterModel } from "@/lib/routerai/models";
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.TOOL_JOB_TIMEOUT_MS || 60000);
+
+declare global {
+  var __elbruswayToolRunnerStarted: boolean | undefined;
+  var __elbruswayToolRunnerActive: boolean | undefined;
+}
 
 export async function createToolJob(params: {
   userId?: string;
@@ -15,7 +20,7 @@ export async function createToolJob(params: {
   jobType: string;
   input?: Record<string, unknown>;
 }) {
-  return prisma.apiJob.create({
+  const job = await prisma.apiJob.create({
     data: {
       userId: params.userId || null,
       projectId: params.projectId || null,
@@ -27,6 +32,8 @@ export async function createToolJob(params: {
       } as Prisma.InputJsonValue
     }
   });
+  ensureToolJobRunner();
+  return job;
 }
 
 export async function getToolJobForUser(jobId: string, userId: string) {
@@ -132,6 +139,16 @@ export async function failToolJob(jobId: string, errorMessage: string) {
   });
 }
 
+async function pickPendingJobIds(limit = 3) {
+  const jobs = await prisma.apiJob.findMany({
+    where: { status: JobStatus.PENDING },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: { id: true }
+  });
+  return jobs.map((job) => job.id);
+}
+
 async function requeueToolJob(jobId: string, input: Record<string, unknown>, errorMessage: string) {
   const meta = getToolJobMeta(input);
   await prisma.apiJob.update({
@@ -201,6 +218,22 @@ async function persistToolArtifact(params: {
   return file;
 }
 
+async function resolveRequestedModel(modelId: unknown, capability: "image" | "audioInput" | "audioOutput" | "vision") {
+  if (typeof modelId === "string" && modelId) {
+    const config = await findRouterModelConfig(modelId);
+    if (config?.isEnabled) {
+      if (capability === "image" && config.supportsImages) return { id: config.id };
+      if (capability === "audioInput" && config.supportsAudio) return { id: config.id };
+      if (capability === "audioOutput" && config.supportsAudio) return { id: config.id };
+      if (capability === "vision" && (config.supportsImages || config.supportsFiles)) return { id: config.id };
+    }
+  }
+  if (capability === "image") return getPreferredRouterModel({ forImageOutput: true });
+  if (capability === "audioInput") return getPreferredRouterModel({ forAudioInput: true });
+  if (capability === "audioOutput") return getPreferredRouterModel({ forAudioOutput: true });
+  return getPreferredRouterModel({ forImageInput: true });
+}
+
 async function withTimeout<T>(task: Promise<T>, timeoutMs = DEFAULT_TIMEOUT_MS) {
   return await Promise.race([
     task,
@@ -227,7 +260,7 @@ async function executeJob(jobId: string) {
     let output: Record<string, unknown> = {};
 
     if (job.jobType.startsWith("image.")) {
-      const model = await getPreferredRouterModel({ forImageOutput: true });
+      const model = await resolveRequestedModel(input.model, "image");
       if (!model) {
         throw new Error("ROUTERAI_IMAGE_MODEL_UNAVAILABLE");
       }
@@ -253,7 +286,7 @@ async function executeJob(jobId: string) {
       output = { fileId: file.id, previewUrl: file.previewUrl, provider: artifact.metadata.provider, model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "image.generate", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("audio.transcription")) {
-      const model = await getPreferredRouterModel({ forAudioInput: true });
+      const model = await resolveRequestedModel(input.model, "audioInput");
       if (!model) {
         throw new Error("ROUTERAI_AUDIO_MODEL_UNAVAILABLE");
       }
@@ -278,7 +311,7 @@ async function executeJob(jobId: string) {
       output = { fileId: file.id, textPreview: String(artifact.content).slice(0, 600), model: model.id, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "audio.transcribe", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("audio.tts")) {
-      const model = await getPreferredRouterModel({ forAudioOutput: true });
+      const model = await resolveRequestedModel(input.model, "audioOutput");
       if (!model) {
         throw new Error("ROUTERAI_TTS_MODEL_UNAVAILABLE");
       }
@@ -313,10 +346,10 @@ async function executeJob(jobId: string) {
         content: artifact.content,
         metadata: artifact.metadata
       });
-      output = { fileId: file.id, status: "done", provider: artifact.metadata.provider, attempts: meta.attemptCount + 1 };
+      output = { fileId: file.id, status: "done", flow: artifact.metadata.flow, attempts: meta.attemptCount + 1 };
       await writeAuditLog({ action: "video.create", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("vision.")) {
-      const model = await getPreferredRouterModel({ forImageInput: true });
+      const model = await resolveRequestedModel(input.model, "vision");
       if (!model) {
         throw new Error("ROUTERAI_VISION_MODEL_UNAVAILABLE");
       }
@@ -370,7 +403,31 @@ async function executeJob(jobId: string) {
 }
 
 export function queueToolJob(jobId: string) {
+  ensureToolJobRunner();
   setTimeout(() => {
     void executeJob(jobId);
   }, 20);
+}
+
+export function ensureToolJobRunner() {
+  if (globalThis.__elbruswayToolRunnerStarted) {
+    return;
+  }
+  globalThis.__elbruswayToolRunnerStarted = true;
+
+  setInterval(() => {
+    if (globalThis.__elbruswayToolRunnerActive) {
+      return;
+    }
+
+    globalThis.__elbruswayToolRunnerActive = true;
+    void (async () => {
+      try {
+        const pendingJobIds = await pickPendingJobIds();
+        await Promise.all(pendingJobIds.map((jobId) => executeJob(jobId)));
+      } finally {
+        globalThis.__elbruswayToolRunnerActive = false;
+      }
+    })();
+  }, 5000);
 }

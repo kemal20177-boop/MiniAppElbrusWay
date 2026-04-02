@@ -16,7 +16,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="ru">
-      <body>
+      <body suppressHydrationWarning>
         <AppShell user={user}>{children}</AppShell>
       </body>
     </html>

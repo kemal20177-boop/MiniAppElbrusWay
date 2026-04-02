@@ -17,7 +17,6 @@ import { makeId, nowIso, type PaymentRecord, type UserRecord, ensureStore } from
 import { prisma } from "@/lib/prisma";
 import { enforceRouterPolicy, getAllowedModelConfig } from "@/lib/routerai-policy";
 import { isPlanAllowed } from "@/lib/routerai-policy";
-import { syncRemoteModelConfigs } from "@/lib/model-config";
 import { Plan, Prisma } from "@prisma/client";
 import {
   createPlategaTransaction,
@@ -52,7 +51,7 @@ type PreparedChatContext = {
 };
 
 export async function getModels(plan: Plan = Plan.FREE) {
-  const [catalog] = await Promise.all([getRouterModelCatalog(), syncRemoteModelConfigs()]);
+  const catalog = await getRouterModelCatalog();
   const configs = await prisma.modelConfig.findMany({
     where: { isEnabled: true }
   });
