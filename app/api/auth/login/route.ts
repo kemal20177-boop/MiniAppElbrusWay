@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { ZodError } from "zod";
 import { createSession, sanitizeUser, sessionCookieName } from "@/lib/auth";
-import { loginSchema } from "@/lib/validators";
+import { getFirstValidationMessage, loginSchema } from "@/lib/validators";
 import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
 
 function resolveLoginError(error: unknown) {
-  if (error instanceof ZodError) {
-    return error.issues[0]?.message || "Проверьте email и пароль";
-  }
   if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
     return "Неверный email или пароль";
   }
-  return error instanceof Error ? error.message : "Не удалось войти";
+  if (error instanceof SyntaxError) {
+    return "Не удалось прочитать данные формы";
+  }
+  if (error instanceof Error) {
+    return getFirstValidationMessage(error, "Не удалось войти");
+  }
+  return "Не удалось войти";
 }
 
 export async function POST(request: NextRequest) {

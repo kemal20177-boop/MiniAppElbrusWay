@@ -37,7 +37,7 @@ export default function VideoToolPage() {
       if (!response.ok) return;
       const job = payload.data.job as Job;
       if (job.status === "SUCCEEDED") {
-        setMessage("Материал готов и сохранён в файлы.");
+        setMessage("Материал готов и сохранён в файлы как сценарный артефакт, а не как видеофайл.");
         setActiveJobId("");
         await loadJobs();
       }
@@ -45,7 +45,7 @@ export default function VideoToolPage() {
         setError(job.errorMessage || "Не удалось завершить подготовку");
         setActiveJobId("");
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId]);
 
@@ -81,7 +81,7 @@ export default function VideoToolPage() {
       setError(payload.message || "Не удалось подготовить материал");
       return;
     }
-    setMessage("Запрос принят. В результате вы получите сценарную основу, а не готовый видеофайл.");
+    setMessage("Запрос принят. Результатом будет сценарная основа или постановка задачи, а не готовое видео.");
     setActiveJobId(payload.data.job.id);
   }
 
@@ -89,8 +89,8 @@ export default function VideoToolPage() {
     <div className="page-stack">
       <section className="surface">
         <div className="eyebrow">Видео</div>
-        <h1 className="surface-title">Раздел видео сейчас честно работает как подготовка ролика, а не как фейковая генерация.</h1>
-        <p className="surface-copy">Здесь можно собрать сториборд, структуру сцен и понятную постановку задачи для съёмки, монтажа или дальнейшего продакшена.</p>
+        <h1 className="surface-title">Видео сейчас оформлено как video planning workspace, а не как фейковая генерация готового ролика.</h1>
+        <p className="surface-copy">Здесь можно собрать сториборд, структуру сцен и понятную постановку задачи для съёмки, монтажа или следующего продакшн-этапа.</p>
       </section>
 
       <div className="media-grid">
@@ -106,11 +106,11 @@ export default function VideoToolPage() {
 
           <form onSubmit={onSubmit} className="section-stack" style={{ marginTop: 18 }}>
             <label className="field">
-              <span>Идея ролика</span>
+              <span>Что нужно подготовить</span>
               <textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Опишите идею, аудиторию, стиль, кадры, ритм, длительность и желаемый результат."
+                placeholder="Опишите идею, аудиторию, визуальный стиль, кадры, темп, ключевые сцены и желаемый итог."
               />
             </label>
 
@@ -137,7 +137,7 @@ export default function VideoToolPage() {
 
             <div className="toolbar-row">
               <button className="button-primary" type="submit">
-                Подготовить материал
+                Подготовить основу
               </button>
               <a href="/files" className="button-secondary">
                 Открыть файлы
@@ -147,8 +147,8 @@ export default function VideoToolPage() {
         </section>
 
         <section className="surface">
-          <div className="eyebrow">Что получится</div>
-          <h2 className="surface-title">Честный результат</h2>
+          <div className="eyebrow">Результат</div>
+          <h2 className="surface-title">Что именно вы получите</h2>
           <div className="feature-list">
             <div className="feature-row">
               <strong>Сториборд</strong>
@@ -160,7 +160,7 @@ export default function VideoToolPage() {
             </div>
             <div className="feature-row">
               <strong>Без ложных обещаний</strong>
-              <span>Раздел не выдаёт текст за готовое видео и не маскирует это под генерацию.</span>
+              <span>Раздел не выдаёт markdown за видеогенерацию и не маскирует planning под финальный рендер.</span>
             </div>
           </div>
 

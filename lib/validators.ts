@@ -24,6 +24,13 @@ export const loginSchema = z.object({
   password: z.string().min(8, { message: "Пароль должен содержать минимум 8 символов" }).max(128)
 });
 
+export function getFirstValidationMessage(error: unknown, fallback = "Проверьте заполнение формы") {
+  if (error instanceof z.ZodError) {
+    return error.issues[0]?.message || fallback;
+  }
+  return fallback;
+}
+
 export const chatSchema = z.object({
   chatId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),

@@ -50,17 +50,27 @@ type PreparedChatContext = {
   }>;
 };
 
+const MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+const modelsByPlanCache = new Map<Plan, { expiresAt: number; data: Awaited<ReturnType<typeof getRouterModelCatalog>> }>();
+
 export async function getModels(plan: Plan = Plan.FREE) {
+  const cached = modelsByPlanCache.get(plan);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data;
+  }
+
   const catalog = await getRouterModelCatalog();
   const configs = await prisma.modelConfig.findMany({
     where: { isEnabled: true }
   });
   const configMap = new Map(configs.map((entry) => [entry.id, entry]));
 
-  return catalog.filter((model) => {
+  const data = catalog.filter((model) => {
     const config = configMap.get(model.id);
     return Boolean(config && isPlanAllowed(plan, config.minPlan));
   });
+  modelsByPlanCache.set(plan, { expiresAt: Date.now() + MODELS_CACHE_TTL_MS, data });
+  return data;
 }
 
 export async function ensureUserCanSpend(userId: string) {

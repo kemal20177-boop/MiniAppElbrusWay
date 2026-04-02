@@ -14,34 +14,22 @@ type SidebarItem = {
 
 const groups: Array<{ title: string; items: SidebarItem[] }> = [
   {
-    title: "Основное",
+    title: "Работа",
     items: [
       { href: "/chat?new=1", label: "Новый чат", icon: "plus" },
       { href: "/chat", label: "Чат", icon: "chat" },
       { href: "/projects", label: "Проекты", icon: "folder" },
-      { href: "/files", label: "Файлы", icon: "file" },
-      { href: "/documents", label: "Документы", icon: "doc" },
-      { href: "/canvas", label: "Редактор", icon: "edit" }
+      { href: "/files", label: "Файлы", icon: "file" }
     ]
   },
   {
-    title: "Нейросети",
+    title: "Инструменты",
     items: [
-      { href: "/chat?family=auto", label: "Авто", icon: "spark" },
-      { href: "/chat?family=chatgpt", label: "ChatGPT", icon: "chat" },
-      { href: "/chat?family=claude", label: "Claude", icon: "doc" },
-      { href: "/chat?family=gemini", label: "Gemini", icon: "grid" },
-      { href: "/chat?family=grok", label: "Grok", icon: "spark" }
-    ]
-  },
-  {
-    title: "Медиа",
-    items: [
-      { href: "/tools/image", label: "Создать изображение", icon: "image" },
-      { href: "/tools/image?mode=image-to-image", label: "Редактировать изображение", icon: "image-edit" },
+      { href: "/tools/image", label: "Изображения", icon: "image" },
       { href: "/tools/video", label: "Видео", icon: "video" },
       { href: "/tools/audio", label: "Аудио", icon: "audio" },
-      { href: "/tools/vision", label: "Анализ изображений", icon: "vision" }
+      { href: "/documents", label: "Документы", icon: "doc" },
+      { href: "/canvas", label: "Canvas", icon: "edit" }
     ]
   },
   {
@@ -64,8 +52,6 @@ function SidebarLink({
   pathname: string;
   onAction: (action: NonNullable<SidebarItem["action"]>) => void;
 }) {
-  const active = item.href ? pathname === item.href || pathname.startsWith(`${item.href}/`) : false;
-
   if (item.action) {
     return (
       <button type="button" className="nav-link" onClick={() => onAction(item.action!)}>
@@ -76,6 +62,10 @@ function SidebarLink({
       </button>
     );
   }
+
+  const active = item.href
+    ? pathname === item.href || pathname.startsWith(`${item.href}/`) || pathname.startsWith(item.href.split("?")[0] || "")
+    : false;
 
   return (
     <Link href={item.href || "#"} className={active ? "nav-link nav-link-active" : "nav-link"}>
@@ -111,7 +101,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             <span className="brand-mark">E</span>
             <span>
               <strong>ElbrusWay AI</strong>
-              <small>Понятный AI-сервис</small>
+              <small>Спокойный AI workspace</small>
             </span>
           </Link>
           <button type="button" className="icon-button sidebar-close" onClick={onClose}>
@@ -132,7 +122,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           ))}
         </nav>
 
-        <div className="sidebar-footer">{loading ? "Выходим..." : "Все материалы доступны в одном кабинете."}</div>
+        <div className="sidebar-footer">{loading ? "Выходим..." : "Главное действие всегда начинается с чата или нужного инструмента."}</div>
       </aside>
     </>
   );

@@ -4,6 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { routerAiJsonRequest } from "@/lib/routerai/client";
 
 const MODEL_CACHE_TTL_SEC = 60 * 10;
+const LOCAL_CACHE_TTL_MS = 5 * 60 * 1000;
+let catalogCache: { expiresAt: number; data: RouterModelCatalogItem[] } | null = null;
+type CuratedSections = {
+  sections: Record<string, RouterModelCatalogItem[]>;
+  leaders: {
+    chatgpt: RouterModelCatalogItem | null;
+    claude: RouterModelCatalogItem | null;
+    gemini: RouterModelCatalogItem | null;
+    grok: RouterModelCatalogItem | null;
+    nanoBanana: RouterModelCatalogItem | null;
+  };
+};
+const curatedCache = new Map<string, { expiresAt: number; data: CuratedSections }>();
 
 export type RouterPricing = Partial<Record<"prompt" | "completion" | "image" | "audio" | "web_search" | "input_cache_read", number>>;
 
@@ -189,9 +202,13 @@ export async function syncRouterModelCatalog(force = false) {
 }
 
 export async function getRouterModelCatalog() {
+  if (catalogCache && catalogCache.expiresAt > Date.now()) {
+    return catalogCache.data;
+  }
+
   const configs = await prisma.modelConfig.findMany();
   if (configs.length > 0) {
-    return configs.map((config) => {
+    const data = configs.map((config) => {
       const name = config.displayName || config.id;
       const provider = config.provider || toProviderName(config.id);
       const fallback = normalizeRouterModel({
@@ -234,12 +251,22 @@ export async function getRouterModelCatalog() {
         isEnabled: config.isEnabled
       };
     });
+    catalogCache = { expiresAt: Date.now() + LOCAL_CACHE_TTL_MS, data };
+    return data;
   }
 
-  return syncRouterModelCatalog();
+  const live = await fetchRouterModelCatalogLive();
+  catalogCache = { expiresAt: Date.now() + LOCAL_CACHE_TTL_MS, data: live };
+  return live;
 }
 
-export async function getCuratedModelSections(plan?: Plan) {
+export async function getCuratedModelSections(plan?: Plan): Promise<CuratedSections> {
+  const cacheKey = plan || "all";
+  const current = curatedCache.get(cacheKey);
+  if (current && current.expiresAt > Date.now()) {
+    return current.data;
+  }
+
   const catalog = await getRouterModelCatalog();
   const allowed = plan ? catalog.filter((item) => item.isEnabled && (!item.minPlan || planRank[item.minPlan] <= planRank[plan])) : catalog.filter((item) => item.isEnabled);
   const fromAdmin = new Map<FeaturedGroup, RouterModelCatalogItem[]>();
@@ -260,7 +287,7 @@ export async function getCuratedModelSections(plan?: Plan) {
     }
   }
 
-  return {
+  const data = {
     sections: Object.fromEntries(FEATURED_GROUPS.map((group) => [group, fromAdmin.get(group) || []])),
     leaders: {
       chatgpt: allowed.find((item) => item.id.toLowerCase().includes("gpt")) || null,
@@ -270,6 +297,8 @@ export async function getCuratedModelSections(plan?: Plan) {
       nanoBanana: allowed.find((item) => item.name.toLowerCase().includes("nano banana") || item.id.toLowerCase().includes("banana")) || null
     }
   };
+  curatedCache.set(cacheKey, { expiresAt: Date.now() + LOCAL_CACHE_TTL_MS, data });
+  return data;
 }
 
 export async function findRouterModelConfig(modelId: string) {
@@ -277,8 +306,7 @@ export async function findRouterModelConfig(modelId: string) {
   if (current) {
     return current;
   }
-  await syncRouterModelCatalog();
-  return prisma.modelConfig.findUnique({ where: { id: modelId } });
+  return null;
 }
 
 export async function getPreferredRouterModel(params: {

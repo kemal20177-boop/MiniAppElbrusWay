@@ -6,12 +6,63 @@ export const siteConfig = {
 
 export const defaultModelId = "openai/gpt-4o-mini";
 
+export const modelPickerTabs = [
+  {
+    key: "popular",
+    label: "Популярные",
+    title: "Быстрый старт",
+    summary: "Модели, с которых проще всего начать без чтения длинных списков."
+  },
+  {
+    key: "chatgpt",
+    label: "ChatGPT",
+    title: "ChatGPT",
+    summary: "Универсальный выбор для чата, идей, анализа и повседневной работы."
+  },
+  {
+    key: "claude",
+    label: "Claude",
+    title: "Claude",
+    summary: "Сильный вариант для длинных материалов, аккуратных формулировок и сложных разборов."
+  },
+  {
+    key: "gemini",
+    label: "Gemini",
+    title: "Gemini",
+    summary: "Удобен для мультимодальных задач, файлов и визуального контента."
+  },
+  {
+    key: "grok",
+    label: "Grok",
+    title: "Grok",
+    summary: "Быстрый ход для коротких ответов, альтернативных идей и живого тона."
+  },
+  {
+    key: "images",
+    label: "Изображения",
+    title: "Модели для изображений",
+    summary: "Подходят для генерации и визуальных экспериментов."
+  },
+  {
+    key: "video",
+    label: "Видео",
+    title: "Модели для video flow",
+    summary: "Используются для сценариев, сторибордов и подготовки задачи."
+  },
+  {
+    key: "audio",
+    label: "Аудио",
+    title: "Модели для аудио",
+    summary: "Подходят для расшифровки и озвучки."
+  }
+] as const;
+
 export const quickModelFamilies = [
   {
-    key: "auto",
-    label: "Авто",
-    title: "Подобрать лучшую",
-    summary: "Если не хочется разбираться в различиях, сервис подскажет удачный вариант для старта."
+    key: "popular",
+    label: "Популярные",
+    title: "Быстрый старт",
+    summary: "Если не хочется разбираться в различиях, начните с популярных моделей."
   },
   {
     key: "chatgpt",
@@ -38,16 +89,22 @@ export const quickModelFamilies = [
     summary: "Быстрый вариант для свежих идей, коротких ответов и альтернативного стиля общения."
   },
   {
-    key: "nano-banana-2",
-    label: "Nano Banana 2",
-    title: "Google Nano Banana 2",
-    summary: "Быстрая модель для генерации изображений и визуальных экспериментов."
+    key: "images",
+    label: "Изображения",
+    title: "Изображения",
+    summary: "Подборка моделей для генерации и редактирования визуального контента."
   },
   {
-    key: "nano-banana-pro",
-    label: "Nano Banana Pro",
-    title: "Google Nano Banana Pro",
-    summary: "Продвинутый вариант для более выразительных и детальных изображений."
+    key: "video",
+    label: "Видео",
+    title: "Видео",
+    summary: "Выбор моделей и flow для сториборда, структуры ролика и постановки задачи."
+  },
+  {
+    key: "audio",
+    label: "Аудио",
+    title: "Аудио",
+    summary: "Модели для расшифровки аудио и озвучки текста."
   }
 ] as const;
 

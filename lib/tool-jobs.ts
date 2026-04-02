@@ -346,7 +346,14 @@ async function executeJob(jobId: string) {
         content: artifact.content,
         metadata: artifact.metadata
       });
-      output = { fileId: file.id, status: "done", flow: artifact.metadata.flow, attempts: meta.attemptCount + 1 };
+      output = {
+        fileId: file.id,
+        previewUrl: file.previewUrl,
+        status: "done",
+        flow: artifact.metadata.flow,
+        readyForVideoOutput: false,
+        attempts: meta.attemptCount + 1
+      };
       await writeAuditLog({ action: "video.create", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("vision.")) {
       const model = await resolveRequestedModel(input.model, "vision");
@@ -429,5 +436,5 @@ export function ensureToolJobRunner() {
         globalThis.__elbruswayToolRunnerActive = false;
       }
     })();
-  }, 5000);
+  }, 2000);
 }

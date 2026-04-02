@@ -60,57 +60,81 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState("");
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(true);
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [files, setFiles] = useState<UserFile[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [useProjectContext, setUseProjectContext] = useState(true);
+  const [bootstrappedChats, setBootstrappedChats] = useState(false);
+  const [bootstrappedContext, setBootstrappedContext] = useState(false);
 
   useEffect(() => {
-    void loadInitial();
+    void loadModels();
   }, []);
 
   useEffect(() => {
     if (models.length === 0) {
       return;
     }
+
+    if (searchParams.get("new") === "1") {
+      startNewChat();
+      return;
+    }
+
     const byFamily = familyFromSearchParam(searchParams.get("family"), models);
     if (byFamily) {
       setSelectedModel(byFamily);
       return;
     }
+
     if (!selectedModel && models[0]?.id) {
       setSelectedModel(models[0].id);
     }
   }, [models, searchParams, selectedModel]);
 
-  async function loadInitial() {
-    const [modelsResponse, chatsResponse, profileResponse] = await Promise.all([
-      fetch("/api/models"),
-      fetch("/api/chats"),
-      fetch("/api/user/profile")
-    ]);
+  useEffect(() => {
+    if (!historyOpen || bootstrappedChats) {
+      return;
+    }
+    setBootstrappedChats(true);
+    void loadChats();
+  }, [bootstrappedChats, historyOpen]);
 
-    const modelsPayload = await modelsResponse.json();
-    const chatsPayload = await chatsResponse.json();
-    const profilePayload = await profileResponse.json();
+  useEffect(() => {
+    if (!settingsOpen || bootstrappedContext) {
+      return;
+    }
+    setBootstrappedContext(true);
+    void loadContextPanel();
+  }, [bootstrappedContext, settingsOpen]);
 
-    if (modelsResponse.ok) {
-      const nextModels = buildUiModels(modelsPayload.data || []);
-      setModels(nextModels);
-      if (nextModels[0]?.id) {
-        setSelectedModel(nextModels[0].id);
-      }
+  async function loadModels() {
+    const response = await fetch("/api/models");
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.message || "Не удалось загрузить модели");
+      return;
     }
 
-    if (chatsResponse.ok) {
-      setChats(chatsPayload.data?.chats || []);
+    const nextModels = buildUiModels(payload.data || []);
+    setModels(nextModels);
+    if (nextModels[0]?.id) {
+      setSelectedModel(nextModels[0].id);
     }
+  }
 
-    if (profileResponse.ok) {
-      setTokenBalance(profilePayload.user?.tokenBalance ?? null);
+  async function loadChats() {
+    const response = await fetch("/api/chats?pageSize=24");
+    const payload = await response.json();
+    if (response.ok) {
+      setChats(payload.data?.chats || []);
     }
   }
 
@@ -127,16 +151,18 @@ export default function ChatPage() {
     }
 
     setChatId(nextChatId);
-    setMessages((payload.messages || []).map((message: { role: ChatMessage["role"]; content: string }) => ({
-      role: message.role,
-      content: message.content
-    })));
+    setMessages(
+      (payload.messages || []).map((message: { role: ChatMessage["role"]; content: string }) => ({
+        role: message.role,
+        content: message.content
+      }))
+    );
+    setHistoryOpen(false);
+    setModelPickerOpen(false);
+    setOverflowOpen(false);
   }
 
   async function loadContextPanel() {
-    if (projects.length && files.length) {
-      return;
-    }
     const [projectsResponse, filesResponse] = await Promise.all([fetch("/api/projects"), fetch("/api/files")]);
     const [projectsPayload, filesPayload] = await Promise.all([projectsResponse.json(), filesResponse.json()]);
     if (projectsResponse.ok) {
@@ -153,11 +179,15 @@ export default function ChatPage() {
       return;
     }
 
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: input.trim() }];
+    const currentInput = input.trim();
+    const previousMessages = messages;
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: currentInput }];
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
     setError("");
+    setModelPickerOpen(false);
+    setOverflowOpen(false);
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -179,7 +209,7 @@ export default function ChatPage() {
     setLoading(false);
     if (!response.ok) {
       setError(payload.message || "Не удалось получить ответ");
-      setMessages(messages);
+      setMessages(previousMessages);
       return;
     }
 
@@ -188,14 +218,9 @@ export default function ChatPage() {
     if (typeof payload.tokenBalance === "number") {
       setTokenBalance(payload.tokenBalance);
     }
-    await loadChats();
-  }
-
-  async function loadChats() {
-    const response = await fetch("/api/chats");
-    const payload = await response.json();
-    if (response.ok) {
-      setChats(payload.data?.chats || []);
+    setHistoryOpen(false);
+    if (bootstrappedChats) {
+      await loadChats();
     }
   }
 
@@ -204,6 +229,9 @@ export default function ChatPage() {
     setMessages([]);
     setInput("");
     setError("");
+    setOverflowOpen(false);
+    setHistoryOpen(false);
+    setModelPickerOpen(true);
   }
 
   const selectedModelMeta = useMemo(
@@ -212,160 +240,207 @@ export default function ChatPage() {
   );
 
   const heroMode = !chatId && messages.length === 0;
+  const selectedFilesPreview = files.filter((file) => selectedFiles.includes(file.id)).slice(0, 3);
 
   return (
-    <div className="page-stack">
-      <div className="chat-layout">
-        <aside className="chat-sidebar-column">
-          <section className="surface">
-            <div className="toolbar-row">
-              <button type="button" className="button-primary" onClick={startNewChat}>
-                <AppIcon name="plus" size={16} />
-                Новый чат
+    <div className="page-stack chat-page">
+      <section className={heroMode ? "chat-stage chat-stage-start" : "chat-stage"}>
+        <div className="chat-toolbar">
+          <div className="chat-toolbar-primary">
+            <button type="button" className="button-secondary compact-button" onClick={() => setHistoryOpen((current) => !current)}>
+              <AppIcon name="chat" size={16} />
+              История
+            </button>
+            <button type="button" className="button-secondary compact-button" onClick={() => setSettingsOpen((current) => !current)}>
+              <AppIcon name="panel" size={16} />
+              Параметры
+            </button>
+          </div>
+          <div className="chat-toolbar-secondary">
+            <button type="button" className="button-ghost compact-button" onClick={() => setOverflowOpen((current) => !current)}>
+              <AppIcon name="menu" size={16} />
+              Ещё
+            </button>
+          </div>
+          {overflowOpen ? (
+            <div className="overflow-popover">
+              <button type="button" className="nav-link" onClick={startNewChat}>
+                <span className="nav-link-icon">
+                  <AppIcon name="plus" size={16} />
+                </span>
+                <span>Начать заново</span>
               </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => {
-                  setPanelOpen((current) => !current);
-                  void loadContextPanel();
-                }}
-              >
-                <AppIcon name="panel" size={16} />
-                Панель
+              <button type="button" className="nav-link" onClick={() => setModelPickerOpen((current) => !current)}>
+                <span className="nav-link-icon">
+                  <AppIcon name="spark" size={16} />
+                </span>
+                <span>Выбрать модель</span>
               </button>
             </div>
-            <div className="chat-list" style={{ marginTop: 16 }}>
-              {chats.map((chat) => (
-                <button
-                  key={chat.id}
-                  type="button"
-                  className={chat.id === chatId ? "chat-list-card active" : "chat-list-card"}
-                  onClick={() => void openChat(chat.id)}
-                >
-                  <div className="chat-item-title">{chat.title}</div>
-                  <div className="chat-item-copy">{formatDate(chat.updatedAt)}</div>
-                </button>
-              ))}
-              {chats.length === 0 ? <div className="muted-text">История чатов появится здесь.</div> : null}
-            </div>
-          </section>
-        </aside>
+          ) : null}
+        </div>
 
-        <section className="chat-main-column">
-          {heroMode ? (
-            <div className="surface chat-hero">
-              <div className="chat-hero-inner">
-                <div className="eyebrow">Чат</div>
-                <h1 className="chat-hero-title">С чего начать?</h1>
-                <p className="surface-copy">
-                  Выберите модель, напишите запрос обычным языком и при необходимости подключите поиск, проект или файлы.
-                </p>
-                <ModelPicker
-                  models={models.filter((model) => model.supportsChat)}
-                  value={selectedModel}
-                  onChange={setSelectedModel}
-                  title="Быстрый выбор модели для чата"
-                  description="Здесь собраны популярные модели для общения, идей, анализа и повседневных задач."
-                />
-                <form onSubmit={sendMessage} className="composer-shell">
-                  <textarea
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    placeholder="Напишите, что хотите сделать: спросить, сравнить, придумать, объяснить или подготовить текст."
-                  />
-                  <div className="toggle-row">
-                    <button type="button" className="toggle-pill" onClick={() => setUseWebSearch((current) => !current)}>
-                      {useWebSearch ? "Поиск включён" : "Добавить поиск"}
-                    </button>
-                    <button type="button" className="toggle-pill" onClick={() => setUseProjectContext((current) => !current)}>
-                      {useProjectContext ? "Контекст проекта включён" : "Контекст проекта выключен"}
-                    </button>
-                  </div>
-                  <div className="composer-footer">
-                    <div className="composer-meta">
-                      <span>{selectedModelMeta?.name || "Выберите модель"}</span>
-                      {tokenBalance !== null ? <span>Баланс: {tokenBalance.toLocaleString("ru-RU")}</span> : null}
-                    </div>
-                    <button className="button-primary" type="submit" disabled={loading || !selectedModel}>
-                      {loading ? "Отвечаем..." : "Отправить"}
-                    </button>
-                  </div>
-                </form>
-              </div>
+        {heroMode ? (
+          <div className="chat-start-shell">
+            <div className="chat-start-copy">
+              <div className="eyebrow">Чат</div>
+              <h1 className="chat-hero-title">Начните с одного сообщения.</h1>
+              <p className="surface-copy">
+                Модель выбирается отдельно и понятно. Проект, файлы и поиск подключаются только когда действительно нужны.
+              </p>
             </div>
-          ) : (
-            <section className="surface thread-card">
-              <div className="composer-meta">
-                <strong>{selectedModelMeta?.name || "Чат"}</strong>
-                <div className="message-actions">
-                  <button
-                    type="button"
-                    className="button-ghost compact-button"
-                    onClick={() => {
-                      setPanelOpen((current) => !current);
-                      void loadContextPanel();
-                    }}
-                  >
-                    Параметры
-                  </button>
-                  <button type="button" className="overflow-menu">
-                    <AppIcon name="menu" size={16} />
-                  </button>
+
+            <div className="chat-start-card surface">
+              <div className="chat-start-topline">
+                <div className="selected-model-pill">
+                  <span className="selected-model-label">Модель</span>
+                  <strong>{selectedModelMeta?.name || "Выберите модель"}</strong>
                 </div>
+                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen((current) => !current)}>
+                  {modelPickerOpen ? "Скрыть подборку" : "Выбрать модель"}
+                </button>
               </div>
 
-              <div className="thread-content">
-                {loadingMessages ? <div className="muted-text">Открываем диалог...</div> : null}
-                {messages.map((message, index) => (
-                  <article key={`${message.role}-${index}`} className={message.role === "user" ? "message-card user" : "message-card assistant"}>
-                    <div className="message-meta">
-                      <strong>{presentRole(message.role)}</strong>
-                    </div>
-                    <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.65 }}>{message.content}</div>
-                  </article>
-                ))}
-              </div>
+              {modelPickerOpen ? (
+                <ModelPicker
+                  models={models}
+                  value={selectedModel}
+                  onChange={(modelId) => {
+                    setSelectedModel(modelId);
+                    setModelPickerOpen(false);
+                  }}
+                  title="Выберите модель для диалога"
+                  description="Выбор разбит по знакомым названиям и сценариям, чтобы не листать весь каталог."
+                  mode="chat"
+                />
+              ) : null}
 
-              <form onSubmit={sendMessage} className="composer-shell">
+              <form onSubmit={sendMessage} className="composer-shell chat-composer">
                 <textarea
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="Продолжите диалог или задайте новый вопрос."
+                  placeholder="Напишите задачу обычным языком: объяснить, придумать, сравнить, проверить, составить текст."
                 />
+                <div className="toggle-row">
+                  <button type="button" className={useWebSearch ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseWebSearch((current) => !current)}>
+                    Web search
+                  </button>
+                  <button
+                    type="button"
+                    className={useProjectContext ? "toggle-pill active" : "toggle-pill"}
+                    onClick={() => setUseProjectContext((current) => !current)}
+                  >
+                    Контекст проекта
+                  </button>
+                </div>
                 <div className="composer-footer">
                   <div className="composer-meta">
-                    <span>{selectedModelMeta?.name || "Модель"}</span>
+                    <span>{selectedModelMeta?.summary || "Сначала выберите модель"}</span>
                     {tokenBalance !== null ? <span>Баланс: {tokenBalance.toLocaleString("ru-RU")}</span> : null}
                   </div>
-                  <button className="button-primary" type="submit" disabled={loading}>
+                  <button className="button-primary" type="submit" disabled={loading || !selectedModel}>
                     {loading ? "Отвечаем..." : "Отправить"}
                   </button>
                 </div>
               </form>
-            </section>
-          )}
+            </div>
+          </div>
+        ) : (
+          <section className="surface thread-card thread-shell">
+            <div className="thread-head">
+              <div>
+                <div className="selected-model-label">Текущая модель</div>
+                <strong>{selectedModelMeta?.name || "Чат"}</strong>
+              </div>
+              <div className="thread-head-actions">
+                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen((current) => !current)}>
+                  Сменить модель
+                </button>
+                <button type="button" className="button-ghost compact-button" onClick={startNewChat}>
+                  Новый чат
+                </button>
+              </div>
+            </div>
 
-          {error ? <div className="error-banner">{error}</div> : null}
-        </section>
-      </div>
+            {modelPickerOpen ? (
+              <ModelPicker
+                models={models}
+                value={selectedModel}
+                onChange={(modelId) => {
+                  setSelectedModel(modelId);
+                  setModelPickerOpen(false);
+                }}
+                title="Сменить модель"
+                description="Переключение доступно в любой момент, без ухода со страницы."
+                mode="chat"
+              />
+            ) : null}
 
-      <aside className={panelOpen ? "surface right-panel open" : "surface right-panel"}>
-        <div className="section-stack">
+            <div className="thread-content">
+              {loadingMessages ? <div className="muted-text">Открываем диалог...</div> : null}
+              {messages.map((message, index) => (
+                <article key={`${message.role}-${index}`} className={message.role === "user" ? "message-card user" : "message-card assistant"}>
+                  <div className="message-meta">
+                    <strong>{presentRole(message.role)}</strong>
+                  </div>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{message.content}</div>
+                </article>
+              ))}
+            </div>
+
+            <form onSubmit={sendMessage} className="composer-shell thread-composer">
+              <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Продолжите диалог или задайте новую задачу." />
+              <div className="composer-footer">
+                <div className="composer-meta">
+                  <span>{selectedModelMeta?.name || "Модель"}</span>
+                  {tokenBalance !== null ? <span>Баланс: {tokenBalance.toLocaleString("ru-RU")}</span> : null}
+                </div>
+                <button className="button-primary" type="submit" disabled={loading}>
+                  {loading ? "Отвечаем..." : "Отправить"}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {error ? <div className="error-banner">{error}</div> : null}
+      </section>
+
+      <div className={historyOpen ? "drawer-backdrop visible" : "drawer-backdrop"} onClick={() => setHistoryOpen(false)} />
+      <aside className={historyOpen ? "chat-drawer open" : "chat-drawer"}>
+        <div className="drawer-head">
+          <div>
+            <div className="eyebrow">История</div>
+            <h2 className="surface-title">Ваши диалоги</h2>
+          </div>
+          <button type="button" className="icon-button" onClick={() => setHistoryOpen(false)}>
+            <AppIcon name="close" size={18} />
+          </button>
+        </div>
+        <div className="chat-list">
+          {chats.map((chat) => (
+            <button key={chat.id} type="button" className={chat.id === chatId ? "chat-list-card active" : "chat-list-card"} onClick={() => void openChat(chat.id)}>
+              <div className="chat-item-title">{chat.title}</div>
+              <div className="chat-item-copy">{formatDate(chat.updatedAt)}</div>
+            </button>
+          ))}
+          {chats.length === 0 ? <div className="muted-text">История появится здесь после первого диалога.</div> : null}
+        </div>
+      </aside>
+
+      <div className={settingsOpen ? "drawer-backdrop visible" : "drawer-backdrop"} onClick={() => setSettingsOpen(false)} />
+      <aside className={settingsOpen ? "context-drawer open" : "context-drawer"}>
+        <div className="drawer-head">
           <div>
             <div className="eyebrow">Параметры</div>
-            <h2 className="surface-title">Настройте текущий чат</h2>
-            <p className="surface-copy">Выберите проект, прикрепите файлы и при желании смените модель.</p>
+            <h2 className="surface-title">Текущий чат</h2>
           </div>
+          <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)}>
+            <AppIcon name="close" size={18} />
+          </button>
+        </div>
 
-          <ModelPicker
-            models={models.filter((model) => model.supportsChat)}
-            value={selectedModel}
-            onChange={setSelectedModel}
-            title="Модель для диалога"
-            description="Переключение доступно в любой момент."
-          />
-
+        <div className="section-stack">
           <label className="field">
             <span>Проект</span>
             <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
@@ -384,7 +459,7 @@ export default function ChatPage() {
               multiple
               value={selectedFiles}
               onChange={(event) => setSelectedFiles(Array.from(event.target.selectedOptions).map((option) => option.value))}
-              style={{ minHeight: 160 }}
+              style={{ minHeight: 180 }}
             >
               {files.map((file) => (
                 <option key={file.id} value={file.id}>
@@ -395,13 +470,26 @@ export default function ChatPage() {
           </label>
 
           <div className="toggle-row">
-            <button type="button" className="toggle-pill" onClick={() => setUseWebSearch((current) => !current)}>
-              {useWebSearch ? "Поиск включён" : "Добавить поиск"}
+            <button type="button" className={useWebSearch ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseWebSearch((current) => !current)}>
+              Web search
             </button>
-            <button type="button" className="toggle-pill" onClick={() => setUseProjectContext((current) => !current)}>
-              {useProjectContext ? "Контекст проекта включён" : "Контекст проекта выключен"}
+            <button type="button" className={useProjectContext ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseProjectContext((current) => !current)}>
+              Контекст проекта
             </button>
           </div>
+
+          {selectedFilesPreview.length ? (
+            <div className="status-list">
+              {selectedFilesPreview.map((file) => (
+                <div key={file.id} className="status-card">
+                  <strong>{file.originalName}</strong>
+                  <span className="muted-text">Файл будет использован как дополнительный контекст.</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="muted-text">Выберите проект или файлы только если они действительно нужны текущему запросу.</div>
+          )}
         </div>
       </aside>
     </div>

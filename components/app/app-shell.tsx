@@ -21,6 +21,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const authScreen = isAuthRoute(pathname);
+  const compactBrand = pathname === "/chat" || pathname.startsWith("/tools/");
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -43,7 +44,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
               <span className="brand-mark small">E</span>
               <span className="brand-inline-copy">
                 <strong>ElbrusWay AI</strong>
-                <small>Чат, медиа, документы и файлы</small>
+                <small>{compactBrand ? "Сначала сообщение, потом всё остальное" : "Понятный AI workspace без лишнего шума"}</small>
               </span>
             </Link>
           </div>
@@ -54,7 +55,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
             {user ? (
               <Link href="/profile" className="account-pill">
                 <span className="account-title">{user.name || user.email}</span>
-                <span className="account-copy">Аккаунт</span>
+                <span className="account-copy">{user.role === "ADMIN" ? "Админ" : "Аккаунт"}</span>
               </Link>
             ) : (
               <div className="topbar-actions">

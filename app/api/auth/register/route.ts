@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { ZodError } from "zod";
 import { createSession, sanitizeUser, sessionCookieName } from "@/lib/auth";
-import { registerSchema } from "@/lib/validators";
+import { getFirstValidationMessage, registerSchema } from "@/lib/validators";
 import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
 import { ensureReferralProgram, generateReferralCode, resolveReferrerByCode } from "@/lib/billing";
 
 function resolveRegisterError(error: unknown) {
-  if (error instanceof ZodError) {
-    return error.issues[0]?.message || "Проверьте данные формы";
-  }
   if (!(error instanceof Error)) {
     return "Регистрация не удалась";
   }
@@ -20,7 +16,7 @@ function resolveRegisterError(error: unknown) {
   if (error.message === "REFERRAL_CODE_NOT_FOUND") {
     return "Реферальный код не найден";
   }
-  return error.message;
+  return getFirstValidationMessage(error, "Регистрация не удалась");
 }
 
 export async function POST(request: NextRequest) {

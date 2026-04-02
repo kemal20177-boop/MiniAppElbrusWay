@@ -7,7 +7,8 @@ export async function generateVideoArtifact(params: {
   durationSec: number;
 }) {
   const response = await runTextProvider({
-    system: "Ты ассистент по подготовке видеопроекта. Верни понятный сториборд или постановку задачи для съёмки и монтажа. Не имитируй готовый видеофайл.",
+    system:
+      "Ты ассистент по подготовке видеопроекта. Верни понятный сториборд или постановку задачи для съёмки и монтажа. Не имитируй готовый видеофайл и не называй текст финальным видео.",
     prompt: `Mode: ${params.mode}\nDuration: ${params.durationSec}s\nPrompt:\n${params.prompt}`,
     maxTokens: 1000
   });
@@ -18,7 +19,8 @@ export async function generateVideoArtifact(params: {
     metadata: {
       flow: "video-planning",
       mode: params.mode,
-      durationSec: params.durationSec
+      durationSec: params.durationSec,
+      readyForVideoOutput: false
     }
   };
 }

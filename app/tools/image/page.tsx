@@ -92,7 +92,7 @@ export default function ImageToolPage() {
         setActiveJobId("");
         await loadJobs();
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId]);
 

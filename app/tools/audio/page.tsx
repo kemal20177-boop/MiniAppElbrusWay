@@ -85,7 +85,7 @@ export default function AudioToolPage() {
         setActiveJobId("");
         await loadJobs();
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId, mode]);
 

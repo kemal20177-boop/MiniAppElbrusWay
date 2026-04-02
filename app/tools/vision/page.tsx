@@ -63,7 +63,7 @@ export default function VisionPage() {
         setError(job.errorMessage || "Не удалось завершить анализ");
         setActiveJobId("");
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId]);
 
