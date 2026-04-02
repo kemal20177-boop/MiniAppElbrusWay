@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     });
     const transcriptionModel = await getPreferredRouterModel({ forAudioInput: true });
     const ttsModel = await getPreferredRouterModel({ forAudioOutput: true });
-    return apiSuccess({ jobs, capability: { transcription: transcriptionModel?.id || null, tts: ttsModel?.id || null } });
+    return apiSuccess({ jobs, setup: { transcriptionReady: Boolean(transcriptionModel), voiceReady: Boolean(ttsModel) } });
   } catch (error) {
     return apiError("AUDIO_LIST_FAILED", resolveErrorMessage(error), 400);
   }
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         ? await getPreferredRouterModel({ forAudioInput: true })
         : await getPreferredRouterModel({ forAudioOutput: true });
     if (!model) {
-      return apiError("AUDIO_MODEL_UNAVAILABLE", payload.mode === "tts" ? "TTS capability недоступен в live catalog RouterAI" : "Audio transcription capability недоступен в live catalog RouterAI", 400);
+      return apiError("AUDIO_MODEL_UNAVAILABLE", payload.mode === "tts" ? "Озвучка сейчас недоступна" : "Расшифровка аудио сейчас недоступна", 400);
     }
     const job = await createToolJob({
       userId: user.id,
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     });
 
     queueToolJob(job.id);
-    return apiSuccess({ job, modelId: model.id }, { status: 202 });
+    return apiSuccess({ job }, { status: 202 });
   } catch (error) {
     return apiError("AUDIO_RUN_FAILED", resolveErrorMessage(error), 400);
   }

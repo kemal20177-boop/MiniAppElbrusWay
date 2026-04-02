@@ -5,8 +5,6 @@ import { FormEvent, useEffect, useState } from "react";
 type UserFileItem = {
   id: string;
   originalName: string;
-  mimeType: string;
-  kind: string;
   previewUrl: string | null;
 };
 
@@ -17,24 +15,23 @@ type VisionJob = {
   errorMessage?: string | null;
   output?: Record<string, unknown> | null;
 };
-type Capability = { available: boolean; modelId: string | null };
+
+const modes = [
+  { id: "describe", label: "Кратко описать" },
+  { id: "ocr", label: "Вытащить текст" },
+  { id: "screenshot-analysis", label: "Разобрать скриншот" },
+  { id: "chart-analysis", label: "Разобрать график" },
+  { id: "ask", label: "Ответить на вопрос" }
+] as const;
 
 function presentStatus(status: string) {
   if (status === "PENDING") return "В очереди";
-  if (status === "RUNNING") return "В обработке";
+  if (status === "RUNNING") return "Анализируем";
   if (status === "SUCCEEDED") return "Готово";
   if (status === "FAILED") return "Ошибка";
   if (status === "CANCELLED") return "Остановлено";
   return status;
 }
-
-const modes = [
-  { id: "ocr", label: "OCR" },
-  { id: "describe", label: "Описание" },
-  { id: "screenshot-analysis", label: "Анализ скриншота" },
-  { id: "chart-analysis", label: "Анализ графика" },
-  { id: "ask", label: "Вопрос по изображению" }
-] as const;
 
 export default function VisionPage() {
   const [files, setFiles] = useState<UserFileItem[]>([]);
@@ -45,57 +42,51 @@ export default function VisionPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
-  const [capability, setCapability] = useState<Capability>({ available: false, modelId: null });
-
-  async function patchJob(jobId: string, action: "retry" | "cancel") {
-    const response = await fetch(`/api/tools/jobs/${jobId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action })
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setError(payload.error?.message || "Не удалось обновить задание");
-      return;
-    }
-    setActiveJobId(action === "retry" ? jobId : "");
-    await loadJobs();
-  }
 
   useEffect(() => {
     void Promise.all([loadFiles(), loadJobs()]);
   }, []);
 
+  useEffect(() => {
+    if (!activeJobId) return;
+    const timer = setInterval(async () => {
+      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
+      const payload = await response.json();
+      if (!response.ok) return;
+      const job = payload.data.job as VisionJob;
+      if (job.status === "SUCCEEDED") {
+        setResult((job.output?.result as Record<string, unknown>) || null);
+        setActiveJobId("");
+        await loadJobs();
+      }
+      if (job.status === "FAILED" || job.status === "CANCELLED") {
+        setError(job.errorMessage || "Не удалось завершить анализ");
+        setActiveJobId("");
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [activeJobId]);
+
   async function loadFiles() {
     const response = await fetch("/api/files?kind=IMAGE");
     const payload = await response.json();
-    if (!response.ok) {
-      setError(payload.error?.message || "Не удалось загрузить файлы");
-      return;
-    }
-
-    const imageFiles = payload.data.files || [];
-    setFiles(imageFiles);
-    if (imageFiles[0]?.id) {
-      setSelectedId((current) => current || imageFiles[0].id);
+    if (!response.ok) return;
+    const nextFiles = payload.data.files || [];
+    setFiles(nextFiles);
+    if (nextFiles[0]?.id) {
+      setSelectedId((current) => current || nextFiles[0].id);
     }
   }
 
   async function loadJobs() {
     const response = await fetch("/api/tools/vision");
     const payload = await response.json();
-    if (response.ok) {
-      setJobs(payload.data.jobs || []);
-      setCapability(payload.data.capability || { available: false, modelId: null });
-    }
+    if (response.ok) setJobs(payload.data.jobs || []);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedId) {
-      return;
-    }
-
+    setError("");
     const response = await fetch("/api/tools/vision", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -107,111 +98,88 @@ export default function VisionPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось выполнить анализ изображения");
+      setError(payload.message || "Не удалось запустить анализ");
       return;
     }
-
     setActiveJobId(payload.data.job.id);
   }
-
-  useEffect(() => {
-    if (!activeJobId) {
-      return;
-    }
-
-    const timer = setInterval(async () => {
-      const response = await fetch(`/api/tools/jobs/${activeJobId}`);
-      const payload = await response.json();
-      if (!response.ok) {
-        return;
-      }
-      const job = payload.data.job as VisionJob;
-      if (job.status === "SUCCEEDED") {
-        setResult((job.output?.result as Record<string, unknown>) || null);
-        setActiveJobId("");
-        await loadJobs();
-      } else if (job.status === "FAILED" || job.status === "CANCELLED") {
-        setError(job.errorMessage || "Задание завершилось с ошибкой");
-        setActiveJobId("");
-        await loadJobs();
-      }
-    }, 1500);
-
-    return () => clearInterval(timer);
-  }, [activeJobId]);
-
-  useEffect(() => {
-    void loadJobs();
-  }, []);
 
   const selected = files.find((entry) => entry.id === selectedId) || null;
 
   return (
-    <main className="workspace-page">
-      <section className="panel workspace-panel">
-        <div className="badge">Зрение</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Анализ изображений</h1>
-        <p className="section-copy" style={{ maxWidth: 820 }}>
-          Загрузи изображение, получи текст с картинки, краткое описание, разбор скриншота, графика или ответ на конкретный вопрос.
-        </p>
-        {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
+    <div className="page-stack">
+      <section className="surface">
+        <div className="eyebrow">Анализ изображений</div>
+        <h1 className="surface-title">Поймите, что находится на картинке, без сложных настроек.</h1>
+        <p className="surface-copy">Можно получить описание, вытащить текст, разобрать интерфейс, график или задать конкретный вопрос по изображению.</p>
+      </section>
 
-        <div className="grid-3" style={{ marginTop: 24 }}>
-          <div className="card">
-            <h2 style={{ marginTop: 0 }}>Библиотека изображений</h2>
-            <div style={{ display: "grid", gap: 10 }}>
-              {files.map((file) => (
-                <button key={file.id} type="button" className="card" onClick={() => setSelectedId(file.id)} style={{ padding: 16, textAlign: "left", background: file.id === selectedId ? "rgba(30,111,217,0.18)" : "rgba(255,255,255,0.03)" }}>
-                  <div style={{ fontWeight: 700 }}>{file.originalName}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{file.mimeType}</div>
-                </button>
-              ))}
-              {files.length === 0 ? <div className="muted">Сначала загрузи изображения в файлы.</div> : null}
-            </div>
-          </div>
-
-          <div className="card" style={{ gridColumn: "span 2" }}>
-            <h2 style={{ marginTop: 0 }}>Запуск анализа</h2>
-            {!selected ? <div className="muted">Выбери изображение</div> : null}
-            {selected ? (
-              <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-                {selected.previewUrl ? <img src={selected.previewUrl} alt={selected.originalName} style={{ width: "100%", maxHeight: 360, objectFit: "contain", borderRadius: 18, border: "1px solid var(--border)" }} /> : null}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {modes.map((entry) => (
-                    <button key={entry.id} type="button" className={mode === entry.id ? "button-primary" : "button-secondary"} onClick={() => setMode(entry.id)}>
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
-                {mode === "ask" ? <textarea value={question} onChange={(event) => setQuestion(event.target.value)} rows={4} placeholder="Что нужно понять по изображению?" className="card" style={{ padding: 14 }} /> : null}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button className="button-primary" type="submit">Запустить анализ</button>
-                  <a className="button-secondary" href="/files">Открыть файлы</a>
-                </div>
-                <pre className="card" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{result ? JSON.stringify(result, null, 2) : "Структурированный результат появится здесь."}</pre>
-              </form>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="card" style={{ marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>История</h2>
-          <div style={{ display: "grid", gap: 10 }}>
-            {jobs.map((job) => (
-              <div key={job.id} className="card" style={{ padding: 16 }}>
-                <div style={{ fontWeight: 700 }}>Запрос от {new Date(job.createdAt).toLocaleString("ru-RU")}</div>
-                {job.errorMessage ? <div className="muted" style={{ marginTop: 6 }}>{job.errorMessage}</div> : null}
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <span className="badge">{presentStatus(job.status)}</span>
-                  {job.status === "PENDING" || job.status === "RUNNING" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "cancel")}>Остановить</button> : null}
-                  {job.status === "FAILED" || job.status === "CANCELLED" ? <button className="button-secondary" type="button" onClick={() => void patchJob(job.id, "retry")}>Повторить</button> : null}
-                </div>
-              </div>
+      <div className="media-grid">
+        <section className="surface">
+          <div className="feature-list">
+            {files.map((file) => (
+              <button key={file.id} type="button" className={file.id === selectedId ? "chat-list-card active" : "chat-list-card"} onClick={() => setSelectedId(file.id)}>
+                <strong>{file.originalName}</strong>
+              </button>
             ))}
-            {jobs.length === 0 ? <div className="muted">Пока нет запусков.</div> : null}
+            {files.length === 0 ? <div className="muted-text">Сначала загрузите изображение в раздел файлов.</div> : null}
           </div>
+        </section>
+
+        <section className="surface">
+          {selected ? (
+            <form onSubmit={onSubmit} className="section-stack">
+              {selected.previewUrl ? (
+                <div className="preview-frame">
+                  <img src={selected.previewUrl} alt={selected.originalName} />
+                </div>
+              ) : null}
+              <div className="family-row">
+                {modes.map((entry) => (
+                  <button key={entry.id} type="button" className={mode === entry.id ? "chip chip-active" : "chip"} onClick={() => setMode(entry.id)}>
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+              {mode === "ask" ? (
+                <label className="field">
+                  <span>Вопрос</span>
+                  <textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Например: что написано на экране и где главная проблема?" />
+                </label>
+              ) : null}
+              {error ? <div className="error-banner">{error}</div> : null}
+              <div className="toolbar-row">
+                <button className="button-primary" type="submit">
+                  Запустить анализ
+                </button>
+                <a href="/files" className="button-secondary">
+                  Открыть файлы
+                </a>
+              </div>
+              <pre className="status-card" style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                {result ? JSON.stringify(result, null, 2) : "Результат анализа появится здесь."}
+              </pre>
+            </form>
+          ) : (
+            <div className="muted-text">Выберите изображение слева.</div>
+          )}
+        </section>
+      </div>
+
+      <section className="surface">
+        <div className="eyebrow">История</div>
+        <h2 className="surface-title">Последние анализы</h2>
+        <div className="status-list">
+          {jobs.map((job) => (
+            <div key={job.id} className="status-card">
+              <strong>{new Date(job.createdAt).toLocaleString("ru-RU")}</strong>
+              <span className="muted-text">{presentStatus(job.status)}</span>
+              {job.errorMessage ? <span className="muted-text">{job.errorMessage}</span> : null}
+            </div>
+          ))}
+          {jobs.length === 0 ? <div className="muted-text">История появится после первого анализа.</div> : null}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

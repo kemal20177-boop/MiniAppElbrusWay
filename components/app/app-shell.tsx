@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { Footer } from "@/components/ui/footer";
 import { Sidebar } from "@/components/app/sidebar";
-import { siteConfig } from "@/lib/site";
+import { AppIcon } from "@/components/app/icon";
 
 type ShellUser = {
   name?: string | null;
@@ -10,62 +13,64 @@ type ShellUser = {
   role: string;
 };
 
+function isAuthRoute(pathname: string) {
+  return pathname.startsWith("/auth/");
+}
+
 export function AppShell({ children, user }: { children: ReactNode; user: ShellUser | null }) {
-  const isAdmin = user?.role === "ADMIN";
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const authScreen = isAuthRoute(pathname);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  if (authScreen) {
+    return <div className="auth-root">{children}</div>;
+  }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="shell topbar-inner panel">
-          <Link href="/" className="brand">
-            <div className="brand-mark">E</div>
-            <div>
-              <div className="brand-title">{siteConfig.name}</div>
-              <div className="muted brand-copy">Премиальный доступ к нейросетям в одном кабинете</div>
-            </div>
-          </Link>
-          <nav className="topbar-nav">
-            <Link href="/chat" className="muted">
-              Чат
+    <div className="app-frame">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="app-main">
+        <header className="topbar">
+          <div className="topbar-left">
+            <button type="button" className="icon-button" onClick={() => setSidebarOpen(true)}>
+              <AppIcon name="menu" size={18} />
+            </button>
+            <Link href="/" className="brand-inline">
+              <span className="brand-mark small">E</span>
+              <span className="brand-inline-copy">
+                <strong>ElbrusWay AI</strong>
+                <small>Чат, медиа, документы и файлы</small>
+              </span>
             </Link>
-            <Link href="/projects" className="muted">
-              Проекты
-            </Link>
-            <Link href="/rates" className="muted">
-              Тарифы
-            </Link>
-            <Link href="/tools/image" className="muted">
-              Изображения
+          </div>
+          <div className="topbar-right">
+            <Link href="/chat?new=1" className="button-ghost compact-button">
+              Новый чат
             </Link>
             {user ? (
-              <>
-                <div className="topbar-user">
-                  <div style={{ fontWeight: 700 }}>{user.name || user.email}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{user.role === "ADMIN" ? "Администратор" : "Аккаунт"}</div>
-                </div>
-                <Link href="/profile" className="button-secondary">
-                  Аккаунт
-                </Link>
-              </>
+              <Link href="/profile" className="account-pill">
+                <span className="account-title">{user.name || user.email}</span>
+                <span className="account-copy">Аккаунт</span>
+              </Link>
             ) : (
-              <>
-                <Link href="/auth/login" className="button-ghost">
+              <div className="topbar-actions">
+                <Link href="/auth/login" className="button-ghost compact-button">
                   Войти
                 </Link>
-                <Link href="/auth/register" className="button-primary">
-                  Попробовать
+                <Link href="/auth/register" className="button-primary compact-button">
+                  Начать
                 </Link>
-              </>
+              </div>
             )}
-          </nav>
-        </div>
-      </header>
-      <div className="shell app-shell-body">
-        <Sidebar isAdmin={isAdmin} />
-        <div className="app-content">
-          {children}
-          <Footer />
-        </div>
+          </div>
+        </header>
+
+        <main className="page-shell">{children}</main>
+        <Footer />
       </div>
     </div>
   );

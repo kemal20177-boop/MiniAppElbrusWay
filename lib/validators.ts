@@ -8,10 +8,10 @@ export const chatMessageSchema = z.object({
 
 export const registerSchema = z
   .object({
-    email: z.string().email(),
-    name: z.string().min(2).max(120),
-    password: z.string().min(8).max(128),
-    confirmPassword: z.string().min(8).max(128),
+    email: z.string().trim().email({ message: "Укажите корректный email" }),
+    name: z.string().trim().min(2, { message: "Введите имя не короче 2 символов" }).max(120),
+    password: z.string().min(8, { message: "Пароль должен содержать минимум 8 символов" }).max(128),
+    confirmPassword: z.string().min(8, { message: "Пароль должен содержать минимум 8 символов" }).max(128),
     referralCode: z.string().trim().min(3).max(64).optional()
   })
   .refine((payload) => payload.password === payload.confirmPassword, {
@@ -20,8 +20,8 @@ export const registerSchema = z
   });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(128)
+  email: z.string().trim().email({ message: "Укажите корректный email" }),
+  password: z.string().min(8, { message: "Пароль должен содержать минимум 8 символов" }).max(128)
 });
 
 export const chatSchema = z.object({
@@ -250,6 +250,7 @@ export const canvasRollbackSchema = z.object({
 
 export const toolImageSchema = z.object({
   mode: z.enum(["text-to-image", "image-to-image"]).default("text-to-image"),
+  model: z.string().min(3).optional(),
   prompt: z.string().trim().min(2).max(4000),
   sourceFileId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
@@ -260,6 +261,7 @@ export const toolImageSchema = z.object({
 
 export const toolAudioSchema = z.object({
   mode: z.enum(["transcription", "tts"]),
+  model: z.string().min(3).optional(),
   text: z.string().trim().max(8000).optional(),
   sourceFileId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
@@ -270,7 +272,7 @@ export const toolAudioSchema = z.object({
   }
 
   return Boolean(payload.text);
-}, { message: "Недостаточно данных для audio tool" });
+}, { message: "Нужно выбрать аудиофайл или ввести текст" });
 
 export const toolVideoSchema = z.object({
   mode: z.enum(["storyboard", "task"]),

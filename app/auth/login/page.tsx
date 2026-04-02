@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -15,61 +16,55 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const payload = await response.json();
 
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.message || "Не удалось войти");
-      }
-
-      router.push("/chat");
-      router.refresh();
-    } catch (nextError) {
-      setError((nextError as Error).message);
-    } finally {
-      setLoading(false);
+    setLoading(false);
+    if (!response.ok) {
+      setError(payload.message || "Не удалось войти");
+      return;
     }
+
+    router.push("/chat");
+    router.refresh();
   }
 
   return (
-    <main className="shell" style={{ padding: "18px 0 56px" }}>
-      <section className="panel" style={{ padding: 28, maxWidth: 560, margin: "0 auto" }}>
-        <div className="badge">Auth</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Вход</h1>
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14, marginTop: 24 }}>
-          <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" style={fieldStyle} />
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Пароль"
-            type="password"
-            style={fieldStyle}
-          />
-          <button className="button-primary" type="submit" disabled={loading}>
+    <section className="auth-shell">
+      <div className="auth-card">
+        <div className="eyebrow">Вход</div>
+        <h1 className="auth-title">Продолжить работу в ElbrusWay AI</h1>
+        <p className="auth-copy">Войдите в аккаунт, чтобы открыть чат, файлы, документы и медиа-инструменты.</p>
+
+        <form onSubmit={onSubmit} className="auth-form">
+          <label className="field">
+            <span>Email</span>
+            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+          </label>
+          <label className="field">
+            <span>Пароль</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Введите пароль"
+            />
+          </label>
+          {error ? <div className="error-banner">{error}</div> : null}
+          <button className="button-primary auth-submit" type="submit" disabled={loading}>
             {loading ? "Входим..." : "Войти"}
           </button>
-          <div className="muted" style={{ fontSize: 14 }}>
-            Если это первый вход, сначала зарегистрируйтесь. Администратор создаётся по `ADMIN_EMAIL`, но пароль ему
-            нужно назначить через JSON store или отдельный flow.
-          </div>
-          {error ? <div style={{ color: "var(--error)" }}>{error}</div> : null}
         </form>
-      </section>
-    </main>
+
+        <div className="auth-footer">
+          <span>Ещё нет аккаунта?</span>
+          <Link href="/auth/register">Создать аккаунт</Link>
+        </div>
+      </div>
+    </section>
   );
 }
-
-const fieldStyle = {
-  width: "100%",
-  minHeight: 48,
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  color: "var(--text-primary)",
-  padding: "0 14px"
-} as const;

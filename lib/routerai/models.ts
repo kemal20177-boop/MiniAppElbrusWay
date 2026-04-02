@@ -189,19 +189,54 @@ export async function syncRouterModelCatalog(force = false) {
 }
 
 export async function getRouterModelCatalog() {
-  const [catalog, configs] = await Promise.all([syncRouterModelCatalog(), prisma.modelConfig.findMany()]);
-  const configMap = new Map(configs.map((item) => [item.id, item]));
-  return catalog.map((item) => {
-    const config = configMap.get(item.id);
-    return {
-      ...item,
-      isFeatured: Boolean(config?.isFeatured),
-      featuredGroup: config?.featuredGroup || null,
-      featuredOrder: config?.featuredOrder || 0,
-      minPlan: config?.minPlan || inferMinPlan(item),
-      isEnabled: config?.isEnabled ?? true
-    };
-  });
+  const configs = await prisma.modelConfig.findMany();
+  if (configs.length > 0) {
+    return configs.map((config) => {
+      const name = config.displayName || config.id;
+      const provider = config.provider || toProviderName(config.id);
+      const fallback = normalizeRouterModel({
+        id: config.id,
+        name,
+        pricing: {
+          prompt: Number(config.inputPrice || 0),
+          completion: Number(config.outputPrice || 0)
+        },
+        context_length: Number(config.maxTokens || 0) * 4,
+        supported_parameters: [
+          ...(config.supportsWebSearch ? ["web_search_options"] : []),
+          ...(config.supportsTools ? ["tools"] : []),
+          ...(config.supportsReasoning ? ["reasoning"] : [])
+        ],
+        architecture: {
+          input_modalities: [
+            "text",
+            ...(config.supportsImages ? ["image"] : []),
+            ...(config.supportsFiles ? ["file"] : []),
+            ...(config.supportsAudio ? ["audio"] : []),
+            ...(config.supportsVideo ? ["video"] : [])
+          ],
+          output_modalities: [
+            "text",
+            ...(config.supportsAudio ? ["audio"] : []),
+            ...(config.supportsImages ? ["image"] : [])
+          ]
+        }
+      });
+
+      return {
+        ...fallback,
+        name,
+        provider,
+        isFeatured: Boolean(config.isFeatured),
+        featuredGroup: config.featuredGroup || null,
+        featuredOrder: config.featuredOrder || 0,
+        minPlan: config.minPlan || inferMinPlan(fallback),
+        isEnabled: config.isEnabled
+      };
+    });
+  }
+
+  return syncRouterModelCatalog();
 }
 
 export async function getCuratedModelSections(plan?: Plan) {
@@ -238,6 +273,10 @@ export async function getCuratedModelSections(plan?: Plan) {
 }
 
 export async function findRouterModelConfig(modelId: string) {
+  const current = await prisma.modelConfig.findUnique({ where: { id: modelId } });
+  if (current) {
+    return current;
+  }
   await syncRouterModelCatalog();
   return prisma.modelConfig.findUnique({ where: { id: modelId } });
 }

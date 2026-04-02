@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 type CanvasItem = {
@@ -15,24 +16,28 @@ export default function CanvasIndexPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    void loadCanvas();
+    void (async () => {
+      await loadCanvas();
+    })();
   }, []);
 
   async function loadCanvas() {
     const response = await fetch("/api/canvas");
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось загрузить Canvas");
+      setError(payload.error?.message || "Не удалось загрузить редакторские заметки");
       return;
     }
-
     setCanvases(payload.data.canvases || []);
   }
 
   async function createCanvas(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError("");
+    setMessage("");
     const response = await fetch("/api/canvas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,50 +49,61 @@ export default function CanvasIndexPage() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setError(payload.error?.message || "Не удалось создать Canvas");
+      setError(payload.error?.message || "Не удалось создать заметку");
       return;
     }
-
     setTitle("");
     setContent("");
+    setMessage("Новая заметка создана");
     await loadCanvas();
   }
 
   return (
-    <main className="workspace-page">
-      <section className="panel workspace-panel">
-        <div className="badge">Canvas</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Canvas workspace</h1>
-        <p className="section-copy" style={{ maxWidth: 820 }}>
-          Отдельные документы с версиями уже создаются, редактируются и доступны по прямому маршруту.
-        </p>
-        {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
-
-        <div className="grid-3" style={{ marginTop: 24 }}>
-          <form className="card" onSubmit={createCanvas}>
-            <h2 style={{ marginTop: 0 }}>Новый canvas</h2>
-            <div style={{ display: "grid", gap: 10 }}>
-              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Название" style={{ width: "100%", minHeight: 46, borderRadius: 14, padding: "0 14px", background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border)" }} />
-              <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={10} placeholder="Содержимое" className="card" style={{ padding: 14 }} />
-              <button className="button-primary" type="submit">Создать</button>
-            </div>
-          </form>
-
-          <div className="card" style={{ gridColumn: "span 2" }}>
-            <h2 style={{ marginTop: 0 }}>Список canvas-документов</h2>
-            <div style={{ display: "grid", gap: 12 }}>
-              {canvases.map((canvas) => (
-                <a key={canvas.id} href={`/canvas/${canvas.id}`} className="card" style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 700 }}>{canvas.title}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>{new Date(canvas.updatedAt).toLocaleString("ru-RU")} · версий {canvas.versions.length}</div>
-                  <div className="muted" style={{ marginTop: 10, whiteSpace: "pre-wrap" }}>{canvas.currentContent.slice(0, 240)}</div>
-                </a>
-              ))}
-              {canvases.length === 0 ? <div className="muted">Canvas-документов пока нет</div> : null}
-            </div>
-          </div>
-        </div>
+    <div className="page-stack">
+      <section className="surface">
+        <div className="eyebrow">Редактор</div>
+        <h1 className="surface-title">Создавайте живые рабочие заметки, которые можно редактировать и хранить по версиям.</h1>
+        <p className="surface-copy">Редактор подходит для черновиков, текстов, технических заметок и промежуточных материалов.</p>
       </section>
-    </main>
+
+      <div className="content-grid two-columns">
+        <section className="surface">
+          <div className="eyebrow">Новая заметка</div>
+          <h2 className="surface-title">Начать с пустого листа</h2>
+          <form onSubmit={createCanvas} className="section-stack">
+            <label className="field">
+              <span>Название</span>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Например: План презентации" />
+            </label>
+            <label className="field">
+              <span>Содержимое</span>
+              <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={10} placeholder="Начните писать заметку, план, черновик или структуру." />
+            </label>
+            {error ? <div className="error-banner">{error}</div> : null}
+            {message ? <div className="success-banner">{message}</div> : null}
+            <button className="button-primary" type="submit">
+              Создать заметку
+            </button>
+          </form>
+        </section>
+
+        <section className="surface">
+          <div className="eyebrow">Список</div>
+          <h2 className="surface-title">Последние заметки</h2>
+          <div className="status-list">
+            {canvases.map((canvas) => (
+              <Link key={canvas.id} href={`/canvas/${canvas.id}`} className="status-card">
+                <strong>{canvas.title}</strong>
+                <span className="muted-text">
+                  Обновлено {new Date(canvas.updatedAt).toLocaleString("ru-RU")} · версий {canvas.versions.length}
+                </span>
+                <span className="muted-text">{canvas.currentContent.slice(0, 220)}</span>
+              </Link>
+            ))}
+            {canvases.length === 0 ? <div className="muted-text">Пока нет заметок.</div> : null}
+          </div>
+        </section>
+      </div>
+    </div>
   );
 }
