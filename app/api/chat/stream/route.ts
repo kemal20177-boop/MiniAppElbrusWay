@@ -14,6 +14,8 @@ type StreamUsage = {
   estimated: boolean;
 };
 
+const STREAM_READ_TIMEOUT_MS = 30000;
+
 function toSseEvent(event: string, payload: Record<string, unknown>) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
@@ -37,6 +39,25 @@ function parseUsageFromChunk(payload: Record<string, unknown>) {
     completionTokens,
     totalTokens
   };
+}
+
+async function readWithTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("ROUTERAI_STREAM_TIMEOUT"));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -108,7 +129,7 @@ export async function POST(request: NextRequest) {
 
         try {
           while (true) {
-            const { done, value } = await reader.read();
+            const { done, value } = await readWithTimeout(reader.read(), STREAM_READ_TIMEOUT_MS);
             if (done) {
               break;
             }
@@ -132,7 +153,13 @@ export async function POST(request: NextRequest) {
                   continue;
                 }
 
-                const chunk = JSON.parse(line) as Record<string, unknown>;
+                let chunk: Record<string, unknown>;
+                try {
+                  chunk = JSON.parse(line) as Record<string, unknown>;
+                } catch (parseError) {
+                  console.warn("[SSE] chunk parse error:", line, parseError);
+                  continue;
+                }
                 const parsedUsage = parseUsageFromChunk(chunk);
                 if (parsedUsage) {
                   usage = { ...parsedUsage, estimated: false };
@@ -278,6 +305,10 @@ export async function POST(request: NextRequest) {
       ROUTERAI_STREAM_EMPTY: {
         message: "Модель не ответила. Попробуйте ещё раз или выберите другую модель.",
         status: 502
+      },
+      ROUTERAI_STREAM_TIMEOUT: {
+        message: "Модель отвечает слишком долго. Попробуйте ещё раз.",
+        status: 504
       }
     };
 

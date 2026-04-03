@@ -8,7 +8,7 @@ export const plans: Record<
     name: "Старт",
     priceRub: 0,
     tokensPerMonth: 50_000,
-    requestsPerHour: 10,
+    requestsPerHour: 30,
     description: "Базовый доступ для знакомства"
   },
   BASE: {
