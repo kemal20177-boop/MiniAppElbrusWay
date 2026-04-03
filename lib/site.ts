@@ -8,104 +8,110 @@ export const defaultModelId = "openai/gpt-4o-mini";
 
 export const modelPickerTabs = [
   {
-    key: "popular",
-    label: "Популярные",
-    title: "Быстрый старт",
-    summary: "Модели, с которых проще всего начать без чтения длинных списков."
+    key: "auto",
+    label: "Все",
+    title: "Все модели",
+    summary: "Показать все доступные модели"
   },
   {
     key: "chatgpt",
     label: "ChatGPT",
     title: "ChatGPT",
-    summary: "Универсальный выбор для чата, идей, анализа и повседневной работы."
+    summary: "Универсальный выбор для чата и задач"
   },
   {
     key: "claude",
     label: "Claude",
     title: "Claude",
-    summary: "Сильный вариант для длинных материалов, аккуратных формулировок и сложных разборов."
+    summary: "Лучший для кода и длинных текстов"
   },
   {
     key: "gemini",
     label: "Gemini",
     title: "Gemini",
-    summary: "Удобен для мультимодальных задач, файлов и визуального контента."
+    summary: "Мультимодальный AI от Google"
   },
   {
     key: "grok",
     label: "Grok",
     title: "Grok",
-    summary: "Быстрый ход для коротких ответов, альтернативных идей и живого тона."
+    summary: "Быстрый AI от xAI"
   },
   {
-    key: "images",
-    label: "Изображения",
-    title: "Модели для изображений",
-    summary: "Подходят для генерации и визуальных экспериментов."
+    key: "deepseek",
+    label: "DeepSeek",
+    title: "DeepSeek",
+    summary: "Мощный и экономичный"
   },
   {
-    key: "video",
-    label: "Видео",
-    title: "Модели для video flow",
-    summary: "Используются для сценариев, сторибордов и подготовки задачи."
+    key: "nano-banana-2",
+    label: "Nano Banana 2",
+    title: "Google Nano Banana 2",
+    summary: "Генерация изображений"
   },
   {
-    key: "audio",
-    label: "Аудио",
-    title: "Модели для аудио",
-    summary: "Подходят для расшифровки и озвучки."
+    key: "nano-banana-pro",
+    label: "Nano Banana Pro",
+    title: "Google Nano Banana Pro",
+    summary: "Продвинутые изображения"
   }
 ] as const;
 
 export const quickModelFamilies = [
   {
-    key: "popular",
-    label: "Популярные",
-    title: "Быстрый старт",
-    summary: "Если не хочется разбираться в различиях, начните с популярных моделей."
+    key: "auto",
+    label: "Все",
+    title: "Все модели",
+    summary: "Показать все доступные модели"
   },
   {
     key: "chatgpt",
     label: "ChatGPT",
     title: "ChatGPT",
-    summary: "Универсальный выбор для повседневных задач, идей, текста и быстрых ответов."
+    summary: "Универсальный выбор для чата и задач"
   },
   {
     key: "claude",
     label: "Claude",
     title: "Claude",
-    summary: "Подходит для длинных материалов, аккуратных формулировок и сложных разборов."
+    summary: "Лучший для кода и длинных текстов"
   },
   {
     key: "gemini",
     label: "Gemini",
     title: "Gemini",
-    summary: "Удобен для мультимодальных задач, работы с файлами и визуальным контентом."
+    summary: "Мультимодальный AI от Google"
   },
   {
     key: "grok",
     label: "Grok",
     title: "Grok",
-    summary: "Быстрый вариант для свежих идей, коротких ответов и альтернативного стиля общения."
+    summary: "Быстрый AI от xAI"
   },
   {
-    key: "images",
-    label: "Изображения",
-    title: "Изображения",
-    summary: "Подборка моделей для генерации и редактирования визуального контента."
+    key: "deepseek",
+    label: "DeepSeek",
+    title: "DeepSeek",
+    summary: "Мощный и экономичный"
   },
   {
-    key: "video",
-    label: "Видео",
-    title: "Видео",
-    summary: "Выбор моделей и flow для сториборда, структуры ролика и постановки задачи."
+    key: "nano-banana-2",
+    label: "Nano Banana 2",
+    title: "Google Nano Banana 2",
+    summary: "Генерация изображений"
   },
   {
-    key: "audio",
-    label: "Аудио",
-    title: "Аудио",
-    summary: "Модели для расшифровки аудио и озвучки текста."
+    key: "nano-banana-pro",
+    label: "Nano Banana Pro",
+    title: "Google Nano Banana Pro",
+    summary: "Продвинутые изображения"
   }
+] as const;
+
+export const videoModels = [
+  { id: "google/veo-3", name: "Google Veo 3", provider: "Google", description: "Кинематографическое видео высокого качества", minPlan: "PRO" },
+  { id: "kling/kling-2.6", name: "Kling 2.6", provider: "Kling AI", description: "Динамичное и реалистичное видео", minPlan: "PRO" },
+  { id: "minimax/video-01", name: "MiniMax Video", provider: "MiniMax", description: "Быстрая генерация коротких роликов", minPlan: "BASE" },
 ] as const;
 
 export const planCatalog = [

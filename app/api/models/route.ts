@@ -12,8 +12,9 @@ function familyFromModel(id: string, name: string) {
   if (source.includes("claude")) return "claude";
   if (source.includes("gemini")) return "gemini";
   if (source.includes("grok")) return "grok";
-  if (source.includes("banana pro")) return "nano-banana-pro";
-  if (source.includes("banana")) return "nano-banana-2";
+  if (source.includes("deepseek")) return "deepseek";
+  if (source.includes("nano-banana-pro") || source.includes("banana pro") || source.includes("nanabananapro")) return "nano-banana-pro";
+  if (source.includes("nano-banana") || source.includes("banana") || source.includes("nanobanana")) return "nano-banana-2";
   if (source.includes("gpt") || source.includes("openai")) return "chatgpt";
   return "auto";
 }
@@ -22,6 +23,9 @@ function summaryForFamily(family: string) {
   if (family === "claude") return "Сильный вариант для длинных материалов, аккуратных формулировок и сложных разборов.";
   if (family === "gemini") return "Подходит для мультимодальных задач, файлов и визуального контента.";
   if (family === "grok") return "Быстрый вариант для коротких ответов, идей и альтернативного стиля.";
+  if (family === "deepseek") return "Мощный и экономичный вариант для кода, анализа и сложных задач.";
+  if (family === "nano-banana-2") return "Быстрый вход в генерацию изображений Google Nano Banana 2.";
+  if (family === "nano-banana-pro") return "Продвинутая генерация изображений Google Nano Banana Pro.";
   return "Универсальный выбор для чата, идей, текста и повседневных задач.";
 }
 

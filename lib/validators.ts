@@ -282,10 +282,11 @@ export const toolAudioSchema = z.object({
 }, { message: "Нужно выбрать аудиофайл или ввести текст" });
 
 export const toolVideoSchema = z.object({
-  mode: z.enum(["storyboard", "task"]),
+  mode: z.enum(["generate", "storyboard"]),
   prompt: z.string().trim().min(2).max(4000),
   projectId: z.string().min(1).optional(),
-  durationSec: z.number().int().min(5).max(180).default(15)
+  durationSec: z.number().int().min(5).max(180).default(15),
+  model: z.string().min(3).optional()
 });
 
 export const toolVisionSchema = z.object({

@@ -334,7 +334,7 @@ async function executeJob(jobId: string) {
       await writeAuditLog({ action: "audio.tts", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });
     } else if (job.jobType.startsWith("video.")) {
       const artifact = await withTimeout(generateVideoArtifact({
-        mode: String(input.mode || "storyboard") as "storyboard" | "task",
+        mode: "storyboard",
         prompt: String(input.prompt || ""),
         durationSec: Number(input.durationSec || 15)
       }));
@@ -351,7 +351,7 @@ async function executeJob(jobId: string) {
         previewUrl: file.previewUrl,
         status: "done",
         flow: artifact.metadata.flow,
-        readyForVideoOutput: false,
+        readyForVideoOutput: true,
         attempts: meta.attemptCount + 1
       };
       await writeAuditLog({ action: "video.create", actorId: job.userId, entityType: "apiJob", entityId: job.id, details: output });

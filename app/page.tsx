@@ -24,7 +24,11 @@ export default async function HomePage() {
       <section className="hero-surface hero-home">
         <div className="hero-copy">
           <div className="eyebrow">ElbrusWay AI</div>
-          <h1 className="hero-title">Один понятный экран для сообщения, выбора модели и дальнейшей работы.</h1>
+          <h1 className="hero-title">
+            Все нейросети
+            <br />
+            <span>без барьеров</span>
+          </h1>
           <p className="hero-text">
             Сервис собран как finished product: сначала понятный старт, потом инструменты, файлы, документы и проекты
             без dev-console ощущения.
@@ -36,6 +40,20 @@ export default async function HomePage() {
             <Link href="/auth/register" className="button-secondary">
               Создать аккаунт
             </Link>
+          </div>
+          <div className="hero-stats">
+            <div className="hero-stat">
+              <strong>350+</strong>
+              <span>нейросетей</span>
+            </div>
+            <div className="hero-stat">
+              <strong>0 ₽</strong>
+              <span>для старта</span>
+            </div>
+            <div className="hero-stat">
+              <strong>Без VPN</strong>
+              <span>работает в РФ</span>
+            </div>
           </div>
           <div className="hero-inline-grid">
             {["Центрированный chat start screen", "Понятный model picker", "Мягкий тёмный интерфейс"].map((item) => (

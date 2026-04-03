@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type CanvasVersion = {
   version: number;
@@ -28,11 +28,7 @@ export default function CanvasPage({ params }: { params: { id: string } }) {
   const [diff, setDiff] = useState<DiffPart[]>([]);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    void loadCanvas();
-  }, [params.id]);
-
-  async function loadCanvas() {
+  const loadCanvas = useCallback(async () => {
     const response = await fetch(`/api/canvas/${params.id}`);
     const payload = await response.json();
     if (!response.ok) {
@@ -44,7 +40,11 @@ export default function CanvasPage({ params }: { params: { id: string } }) {
     setCanvas(nextCanvas);
     setTitle(nextCanvas.title);
     setContent(nextCanvas.currentContent);
-  }
+  }, [params.id]);
+
+  useEffect(() => {
+    void loadCanvas();
+  }, [loadCanvas]);
 
   async function saveCanvas(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

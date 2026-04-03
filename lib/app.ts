@@ -815,11 +815,15 @@ export async function createChatStream(params: {
     web: Boolean(params.tools?.webSearch && prepared.modelConfig.supportsWebSearch),
     fileParser: Boolean((params.attachmentIds || []).length && prepared.modelConfig.supportsTools)
   });
+  const routerModel =
+    params.tools?.webSearch && prepared.modelConfig.supportsWebSearch
+      ? `${params.model}:online`
+      : params.model;
   const { response } = await createRouterChatStream({
     userId: params.user.id,
     projectId: context.projectId,
     chatId: context.chatId,
-    model: params.model,
+    model: routerModel,
     messages: routerMessages,
     maxTokens: prepared.policy.maxCompletionTokens,
     plugins,

@@ -2,16 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app/icon";
-import { modelPickerTabs } from "@/lib/site";
+import { quickModelFamilies } from "@/lib/site";
 import { type UiModel } from "@/lib/model-ui";
 
 function familyIcon(key: string) {
   if (key === "claude") return "doc";
   if (key === "gemini") return "grid";
   if (key === "grok") return "spark";
-  if (key === "images") return "image";
-  if (key === "video") return "video";
-  if (key === "audio") return "audio";
+  if (key === "deepseek") return "settings";
+  if (key === "nano-banana-2" || key === "nano-banana-pro") return "image";
   return "chat";
 }
 
@@ -32,7 +31,9 @@ export function ModelPicker({
   filter?: (model: UiModel) => boolean;
   mode?: "chat" | "image" | "video" | "audio";
 }) {
-  const [tab, setTab] = useState(mode === "image" ? "images" : mode === "video" ? "video" : mode === "audio" ? "audio" : "popular");
+  const [tab, setTab] = useState(
+    mode === "image" ? "nano-banana-2" : "auto"
+  );
 
   const scoped = useMemo(() => {
     const byMode = models.filter((model) => {
@@ -42,22 +43,26 @@ export function ModelPicker({
       return model.supportsChat;
     });
 
-    return filter ? byMode.filter(filter) : byMode;
+    const filtered = filter ? byMode.filter(filter) : byMode;
+
+    if (mode === "image") {
+      return [...filtered].sort((left, right) => {
+        const score = (family: string) => {
+          if (family === "nano-banana-2") return 3;
+          if (family === "nano-banana-pro") return 2;
+          return 1;
+        };
+
+        return score(right.family) - score(left.family);
+      });
+    }
+
+    return filtered;
   }, [filter, mode, models]);
 
   const visible = useMemo(() => {
-    if (tab === "popular") {
-      const featured = scoped.filter((model) => model.featured);
-      return featured.length ? featured : scoped.slice(0, 8);
-    }
-    if (tab === "images") {
-      return scoped.filter((model) => model.supportsImages);
-    }
-    if (tab === "video") {
-      return scoped.filter((model) => model.supportsVideo);
-    }
-    if (tab === "audio") {
-      return scoped.filter((model) => model.supportsAudio);
+    if (tab === "auto") {
+      return scoped;
     }
 
     return scoped.filter((model) => model.family === tab);
@@ -65,7 +70,11 @@ export function ModelPicker({
 
   const fallback = scoped.slice(0, 8);
   const selectedModel = scoped.find((model) => model.id === value) || visible[0] || fallback[0] || null;
-  const activeTab = modelPickerTabs.find((item) => item.key === tab) || modelPickerTabs[0];
+  const activeTab = quickModelFamilies.find((item) => item.key === tab) || quickModelFamilies[0];
+  const tabItems = useMemo(
+    () => quickModelFamilies.filter((item) => item.key === "auto" || scoped.some((model) => model.family === item.key)),
+    [scoped]
+  );
 
   return (
     <section className="surface model-picker-panel">
@@ -86,7 +95,7 @@ export function ModelPicker({
         </div>
 
         <div className="model-tab-row" role="tablist" aria-label="Категории моделей">
-          {modelPickerTabs.map((item) => (
+          {tabItems.map((item) => (
             <button
               key={item.key}
               type="button"

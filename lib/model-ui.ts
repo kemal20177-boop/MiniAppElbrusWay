@@ -20,6 +20,9 @@ export function mapModelToFamily(model: { id: string; name: string }) {
   if (source.includes("claude")) return "claude";
   if (source.includes("gemini")) return "gemini";
   if (source.includes("grok")) return "grok";
+  if (source.includes("deepseek")) return "deepseek";
+  if (source.includes("nano-banana-pro") || source.includes("nanabananapro")) return "nano-banana-pro";
+  if (source.includes("nano-banana") || source.includes("nanobanana")) return "nano-banana-2";
   if (source.includes("gpt") || source.includes("openai") || source.includes("chatgpt")) return "chatgpt";
   return "popular";
 }

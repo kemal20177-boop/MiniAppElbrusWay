@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppIcon } from "@/components/app/icon";
 import { ModelPicker } from "@/components/app/model-picker";
+import { FormattedMessage } from "@/components/app/formatted-message";
 import { buildUiModels, type UiModel } from "@/lib/model-ui";
 
 type ChatSummary = {
@@ -27,10 +28,75 @@ type Project = {
   title: string;
 };
 
-function presentRole(role: ChatMessage["role"]) {
-  if (role === "user") return "Вы";
-  if (role === "assistant") return "ElbrusWay AI";
-  return "Система";
+function ChatComposer({
+  input,
+  loading,
+  selectedModel,
+  selectedModelName,
+  tokenBalance,
+  useWebSearch,
+  onToggleWebSearch,
+  onInputChange,
+  onSubmit,
+  textareaRef,
+  placeholder
+}: {
+  input: string;
+  loading: boolean;
+  selectedModel: string;
+  selectedModelName: string;
+  tokenBalance: number | null;
+  useWebSearch: boolean;
+  onToggleWebSearch: () => void;
+  onInputChange: (value: string, element: HTMLTextAreaElement) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  textareaRef: RefObject<HTMLTextAreaElement>;
+  placeholder: string;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="composer-shell">
+      <div className="composer-modes">
+        <button type="button" className={`mode-pill ${useWebSearch ? "active" : ""}`} onClick={onToggleWebSearch}>
+          🔍 {useWebSearch ? "Поиск вкл" : "Веб-поиск"}
+        </button>
+        <a href="/tools/image" className="mode-pill">🖼 Изображения</a>
+        <a href="/tools/video" className="mode-pill">🎬 Видео</a>
+        <a href="/files" className="mode-pill">📄 Файлы</a>
+      </div>
+
+      <div className="composer-input-row">
+        <textarea
+          ref={textareaRef}
+          className="composer-textarea"
+          value={input}
+          rows={1}
+          onChange={(e) => onInputChange(e.target.value, e.target)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+          placeholder={placeholder}
+        />
+        <button className="composer-send-btn" type="submit" disabled={loading || !selectedModel} title="Отправить (Enter)">
+          ↑
+        </button>
+      </div>
+
+      <div className="composer-footer">
+        <div className="composer-meta">
+          <span style={{ color: "var(--text-soft)", fontSize: 14 }}>{selectedModelName || "Выберите модель"}</span>
+          {tokenBalance !== null && (
+            <span style={{ color: "var(--brand-cyan)", fontSize: 13, fontFamily: "monospace" }}>
+              {tokenBalance.toLocaleString("ru-RU")} ток.
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Shift+Enter — новая строка</span>
+      </div>
+    </form>
+  );
 }
 
 function formatDate(value: string) {
@@ -73,14 +139,15 @@ export default function ChatPage() {
   const [bootstrappedChats, setBootstrappedChats] = useState(false);
   const [bootstrappedContext, setBootstrappedContext] = useState(false);
 
+  const threadRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     void loadModels();
   }, []);
 
   useEffect(() => {
-    if (models.length === 0) {
-      return;
-    }
+    if (models.length === 0) return;
 
     if (searchParams.get("new") === "1") {
       startNewChat();
@@ -99,43 +166,40 @@ export default function ChatPage() {
   }, [models, searchParams, selectedModel]);
 
   useEffect(() => {
-    if (!historyOpen || bootstrappedChats) {
-      return;
-    }
+    if (!historyOpen || bootstrappedChats) return;
     setBootstrappedChats(true);
     void loadChats();
   }, [bootstrappedChats, historyOpen]);
 
   useEffect(() => {
-    if (!settingsOpen || bootstrappedContext) {
-      return;
-    }
+    if (!settingsOpen || bootstrappedContext) return;
     setBootstrappedContext(true);
     void loadContextPanel();
   }, [bootstrappedContext, settingsOpen]);
 
+  // Автопрокрутка к последнему сообщению
+  useEffect(() => {
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
   async function loadModels() {
     const response = await fetch("/api/models");
     const payload = await response.json();
-
     if (!response.ok) {
       setError(payload.message || "Не удалось загрузить модели");
       return;
     }
-
     const nextModels = buildUiModels(payload.data || []);
     setModels(nextModels);
-    if (nextModels[0]?.id) {
-      setSelectedModel(nextModels[0].id);
-    }
+    if (nextModels[0]?.id) setSelectedModel(nextModels[0].id);
   }
 
   async function loadChats() {
     const response = await fetch("/api/chats?pageSize=24");
     const payload = await response.json();
-    if (response.ok) {
-      setChats(payload.data?.chats || []);
-    }
+    if (response.ok) setChats(payload.data?.chats || []);
   }
 
   async function openChat(nextChatId: string) {
@@ -165,62 +229,108 @@ export default function ChatPage() {
   async function loadContextPanel() {
     const [projectsResponse, filesResponse] = await Promise.all([fetch("/api/projects"), fetch("/api/files")]);
     const [projectsPayload, filesPayload] = await Promise.all([projectsResponse.json(), filesResponse.json()]);
-    if (projectsResponse.ok) {
-      setProjects(projectsPayload.data?.projects || []);
-    }
-    if (filesResponse.ok) {
-      setFiles(filesPayload.data?.files || []);
-    }
+    if (projectsResponse.ok) setProjects(projectsPayload.data?.projects || []);
+    if (filesResponse.ok) setFiles(filesPayload.data?.files || []);
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!input.trim() || !selectedModel || loading) {
-      return;
-    }
+    if (!input.trim() || !selectedModel || loading) return;
 
-    const currentInput = input.trim();
-    const previousMessages = messages;
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: currentInput }];
-    setMessages(nextMessages);
+    const userMessage: ChatMessage = { role: "user", content: input.trim() };
+    const nextMessages: ChatMessage[] = [...messages, userMessage];
+
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
     setError("");
     setModelPickerOpen(false);
     setOverflowOpen(false);
 
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chatId: chatId || undefined,
-        projectId: selectedProjectId || undefined,
-        model: selectedModel,
-        attachmentIds: selectedFiles,
-        tools: {
-          webSearch: useWebSearch,
-          projectContext: useProjectContext
-        },
-        messages: nextMessages
-      })
-    });
-
-    const payload = await response.json();
-    setLoading(false);
-    if (!response.ok) {
-      setError(payload.message || "Не удалось получить ответ");
-      setMessages(previousMessages);
-      return;
+    // Сбросить высоту textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
     }
 
-    setChatId(payload.chatId);
-    setMessages([...nextMessages, { role: "assistant", content: payload.content || "" }]);
-    if (typeof payload.tokenBalance === "number") {
-      setTokenBalance(payload.tokenBalance);
-    }
-    setHistoryOpen(false);
-    if (bootstrappedChats) {
+    try {
+      const response = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatId: chatId || undefined,
+          projectId: selectedProjectId || undefined,
+          model: selectedModel,
+          attachmentIds: selectedFiles,
+          tools: { webSearch: useWebSearch, projectContext: useProjectContext },
+          messages: nextMessages
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json();
+        setError(payload.message || "Ошибка отправки");
+        setMessages(nextMessages);
+        return;
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+      let currentEvent = "";
+      let newChatId = chatId;
+
+      const processBlock = (block: string) => {
+        const lines = block.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            currentEvent = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            const raw = line.slice(5).trim();
+            if (!raw || raw === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(raw) as Record<string, unknown>;
+              if (currentEvent === "delta" || typeof parsed.content === "string") {
+                const piece = typeof parsed.content === "string" ? parsed.content : "";
+                if (piece) {
+                  fullContent += piece;
+                  setMessages([...nextMessages, { role: "assistant", content: fullContent }]);
+                }
+              }
+              if (currentEvent === "done" || currentEvent === "meta") {
+                if (parsed.chatId) newChatId = parsed.chatId as string;
+                if (typeof parsed.tokenBalance === "number") setTokenBalance(parsed.tokenBalance);
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+
+        for (const block of blocks) {
+          processBlock(block);
+        }
+      }
+
+      // Process remaining buffer
+      if (buffer.trim()) processBlock(buffer);
+
+      setChatId(newChatId);
       await loadChats();
+    } catch (err) {
+      setError((err as Error).message || "Ошибка соединения");
+      setMessages(nextMessages);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -247,37 +357,33 @@ export default function ChatPage() {
       <section className={heroMode ? "chat-stage chat-stage-start" : "chat-stage"}>
         <div className="chat-toolbar">
           <div className="chat-toolbar-primary">
-            <button type="button" className="button-secondary compact-button" onClick={() => setHistoryOpen((current) => !current)}>
+            <button type="button" className="button-secondary compact-button" onClick={() => setHistoryOpen((v) => !v)}>
               <AppIcon name="chat" size={16} />
               История
             </button>
-            <button type="button" className="button-secondary compact-button" onClick={() => setSettingsOpen((current) => !current)}>
+            <button type="button" className="button-secondary compact-button" onClick={() => setSettingsOpen((v) => !v)}>
               <AppIcon name="panel" size={16} />
               Параметры
             </button>
           </div>
           <div className="chat-toolbar-secondary">
-            <button type="button" className="button-ghost compact-button" onClick={() => setOverflowOpen((current) => !current)}>
+            <button type="button" className="button-ghost compact-button" onClick={() => setOverflowOpen((v) => !v)}>
               <AppIcon name="menu" size={16} />
               Ещё
             </button>
           </div>
-          {overflowOpen ? (
+          {overflowOpen && (
             <div className="overflow-popover">
               <button type="button" className="nav-link" onClick={startNewChat}>
-                <span className="nav-link-icon">
-                  <AppIcon name="plus" size={16} />
-                </span>
+                <span className="nav-link-icon"><AppIcon name="plus" size={16} /></span>
                 <span>Начать заново</span>
               </button>
-              <button type="button" className="nav-link" onClick={() => setModelPickerOpen((current) => !current)}>
-                <span className="nav-link-icon">
-                  <AppIcon name="spark" size={16} />
-                </span>
+              <button type="button" className="nav-link" onClick={() => setModelPickerOpen((v) => !v)}>
+                <span className="nav-link-icon"><AppIcon name="spark" size={16} /></span>
                 <span>Выбрать модель</span>
               </button>
             </div>
-          ) : null}
+          )}
         </div>
 
         {heroMode ? (
@@ -296,12 +402,16 @@ export default function ChatPage() {
                   <span className="selected-model-label">Модель</span>
                   <strong>{selectedModelMeta?.name || "Выберите модель"}</strong>
                 </div>
-                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen((current) => !current)}>
-                  {modelPickerOpen ? "Скрыть подборку" : "Выбрать модель"}
+                <button
+                  type="button"
+                  className="button-secondary compact-button"
+                  onClick={() => setModelPickerOpen((v) => !v)}
+                >
+                  {modelPickerOpen ? "Скрыть" : "Выбрать модель"}
                 </button>
               </div>
 
-              {modelPickerOpen ? (
+              {modelPickerOpen && (
                 <ModelPicker
                   models={models}
                   value={selectedModel}
@@ -310,39 +420,28 @@ export default function ChatPage() {
                     setModelPickerOpen(false);
                   }}
                   title="Выберите модель для диалога"
-                  description="Выбор разбит по знакомым названиям и сценариям, чтобы не листать весь каталог."
+                  description="Выбор разбит по знакомым названиям и сценариям."
                   mode="chat"
                 />
-              ) : null}
+              )}
 
-              <form onSubmit={sendMessage} className="composer-shell chat-composer">
-                <textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="Напишите задачу обычным языком: объяснить, придумать, сравнить, проверить, составить текст."
-                />
-                <div className="toggle-row">
-                  <button type="button" className={useWebSearch ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseWebSearch((current) => !current)}>
-                    Web search
-                  </button>
-                  <button
-                    type="button"
-                    className={useProjectContext ? "toggle-pill active" : "toggle-pill"}
-                    onClick={() => setUseProjectContext((current) => !current)}
-                  >
-                    Контекст проекта
-                  </button>
-                </div>
-                <div className="composer-footer">
-                  <div className="composer-meta">
-                    <span>{selectedModelMeta?.summary || "Сначала выберите модель"}</span>
-                    {tokenBalance !== null ? <span>Баланс: {tokenBalance.toLocaleString("ru-RU")}</span> : null}
-                  </div>
-                  <button className="button-primary" type="submit" disabled={loading || !selectedModel}>
-                    {loading ? "Отвечаем..." : "Отправить"}
-                  </button>
-                </div>
-              </form>
+              <ChatComposer
+                input={input}
+                loading={loading}
+                selectedModel={selectedModel}
+                selectedModelName={selectedModelMeta?.name || ""}
+                tokenBalance={tokenBalance}
+                useWebSearch={useWebSearch}
+                onToggleWebSearch={() => setUseWebSearch((v) => !v)}
+                onInputChange={(value, element) => {
+                  setInput(value);
+                  element.style.height = "auto";
+                  element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
+                }}
+                onSubmit={sendMessage}
+                textareaRef={textareaRef}
+                placeholder="Напишите задачу обычным языком: объяснить, придумать, сравнить, составить текст."
+              />
             </div>
           </div>
         ) : (
@@ -353,7 +452,7 @@ export default function ChatPage() {
                 <strong>{selectedModelMeta?.name || "Чат"}</strong>
               </div>
               <div className="thread-head-actions">
-                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen((current) => !current)}>
+                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen((v) => !v)}>
                   Сменить модель
                 </button>
                 <button type="button" className="button-ghost compact-button" onClick={startNewChat}>
@@ -362,7 +461,7 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {modelPickerOpen ? (
+            {modelPickerOpen && (
               <ModelPicker
                 models={models}
                 value={selectedModel}
@@ -371,47 +470,88 @@ export default function ChatPage() {
                   setModelPickerOpen(false);
                 }}
                 title="Сменить модель"
-                description="Переключение доступно в любой момент, без ухода со страницы."
+                description="Переключение доступно в любой момент."
                 mode="chat"
               />
-            ) : null}
+            )}
 
-            <div className="thread-content">
-              {loadingMessages ? <div className="muted-text">Открываем диалог...</div> : null}
-              {messages.map((message, index) => (
-                <article key={`${message.role}-${index}`} className={message.role === "user" ? "message-card user" : "message-card assistant"}>
-                  <div className="message-meta">
-                    <strong>{presentRole(message.role)}</strong>
+            <div className="thread-content" ref={threadRef} style={{ maxHeight: "60vh", overflowY: "auto" }}>
+              {loadingMessages && <div className="muted-text">Открываем диалог...</div>}
+
+              {messages.map((msg, idx) => {
+                const isUser = msg.role === "user";
+                const isEmptyAssistant = msg.role === "assistant" && !msg.content && loading && idx === messages.length - 1;
+
+                if (isEmptyAssistant) {
+                  return (
+                    <div key={`typing-${idx}`} className="message-card assistant">
+                      <div className="message-avatar ai-av">AI</div>
+                      <div className="typing-dots">
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                        <div className="typing-dot" />
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={`${msg.role}-${idx}`} className={`message-card ${msg.role}`}>
+                    <div className={`message-avatar ${isUser ? "user-av" : "ai-av"}`}>
+                      {isUser ? "Я" : "AI"}
+                    </div>
+                    <div>
+                      <div className="message-bubble">
+                        <FormattedMessage content={msg.content} />
+                      </div>
+                      {msg.role === "assistant" && msg.content && (
+                        <div className="message-meta">
+                          <button
+                            type="button"
+                            className="button-ghost compact-button"
+                            style={{ fontSize: 11, minHeight: 24, padding: "0 8px" }}
+                            onClick={() => navigator.clipboard.writeText(msg.content)}
+                          >
+                            Копировать
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{message.content}</div>
-                </article>
-              ))}
+                );
+              })}
             </div>
 
-            <form onSubmit={sendMessage} className="composer-shell thread-composer">
-              <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Продолжите диалог или задайте новую задачу." />
-              <div className="composer-footer">
-                <div className="composer-meta">
-                  <span>{selectedModelMeta?.name || "Модель"}</span>
-                  {tokenBalance !== null ? <span>Баланс: {tokenBalance.toLocaleString("ru-RU")}</span> : null}
-                </div>
-                <button className="button-primary" type="submit" disabled={loading}>
-                  {loading ? "Отвечаем..." : "Отправить"}
-                </button>
-              </div>
-            </form>
+            <ChatComposer
+              input={input}
+              loading={loading}
+              selectedModel={selectedModel}
+              selectedModelName={selectedModelMeta?.name || ""}
+              tokenBalance={tokenBalance}
+              useWebSearch={useWebSearch}
+              onToggleWebSearch={() => setUseWebSearch((v) => !v)}
+              onInputChange={(value, element) => {
+                setInput(value);
+                element.style.height = "auto";
+                element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
+              }}
+              onSubmit={sendMessage}
+              textareaRef={textareaRef}
+              placeholder="Продолжите диалог или задайте новую задачу."
+            />
           </section>
         )}
 
-        {error ? <div className="error-banner">{error}</div> : null}
+        {error && <div className="error-banner">{error}</div>}
       </section>
 
+      {/* История чатов */}
       <div className={historyOpen ? "drawer-backdrop visible" : "drawer-backdrop"} onClick={() => setHistoryOpen(false)} />
       <aside className={historyOpen ? "chat-drawer open" : "chat-drawer"}>
         <div className="drawer-head">
           <div>
             <div className="eyebrow">История</div>
-            <h2 className="surface-title">Ваши диалоги</h2>
+            <h2 className="surface-title" style={{ fontSize: 18 }}>Ваши диалоги</h2>
           </div>
           <button type="button" className="icon-button" onClick={() => setHistoryOpen(false)}>
             <AppIcon name="close" size={18} />
@@ -419,21 +559,34 @@ export default function ChatPage() {
         </div>
         <div className="chat-list">
           {chats.map((chat) => (
-            <button key={chat.id} type="button" className={chat.id === chatId ? "chat-list-card active" : "chat-list-card"} onClick={() => void openChat(chat.id)}>
+            <button
+              key={chat.id}
+              type="button"
+              className={chat.id === chatId ? "chat-list-card active" : "chat-list-card"}
+              onClick={() => void openChat(chat.id)}
+            >
               <div className="chat-item-title">{chat.title}</div>
               <div className="chat-item-copy">{formatDate(chat.updatedAt)}</div>
             </button>
           ))}
-          {chats.length === 0 ? <div className="muted-text">История появится здесь после первого диалога.</div> : null}
+          {chats.length === 0 && (
+            <div className="muted-text">История появится здесь после первого диалога.</div>
+          )}
+        </div>
+        <div>
+          <button type="button" className="button-primary" style={{ width: "100%" }} onClick={startNewChat}>
+            + Новый чат
+          </button>
         </div>
       </aside>
 
+      {/* Параметры */}
       <div className={settingsOpen ? "drawer-backdrop visible" : "drawer-backdrop"} onClick={() => setSettingsOpen(false)} />
       <aside className={settingsOpen ? "context-drawer open" : "context-drawer"}>
         <div className="drawer-head">
           <div>
             <div className="eyebrow">Параметры</div>
-            <h2 className="surface-title">Текущий чат</h2>
+            <h2 className="surface-title" style={{ fontSize: 18 }}>Текущий чат</h2>
           </div>
           <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)}>
             <AppIcon name="close" size={18} />
@@ -443,12 +596,10 @@ export default function ChatPage() {
         <div className="section-stack">
           <label className="field">
             <span>Проект</span>
-            <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)}>
+            <select value={selectedProjectId} onChange={(e) => setSelectedProjectId(e.target.value)}>
               <option value="">Без проекта</option>
               {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
+                <option key={project.id} value={project.id}>{project.title}</option>
               ))}
             </select>
           </label>
@@ -458,37 +609,35 @@ export default function ChatPage() {
             <select
               multiple
               value={selectedFiles}
-              onChange={(event) => setSelectedFiles(Array.from(event.target.selectedOptions).map((option) => option.value))}
-              style={{ minHeight: 180 }}
+              onChange={(e) => setSelectedFiles(Array.from(e.target.selectedOptions).map((o) => o.value))}
+              style={{ minHeight: 160 }}
             >
               {files.map((file) => (
-                <option key={file.id} value={file.id}>
-                  {file.originalName}
-                </option>
+                <option key={file.id} value={file.id}>{file.originalName}</option>
               ))}
             </select>
           </label>
 
           <div className="toggle-row">
-            <button type="button" className={useWebSearch ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseWebSearch((current) => !current)}>
-              Web search
+            <button type="button" className={useWebSearch ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseWebSearch((v) => !v)}>
+              🔍 Веб-поиск
             </button>
-            <button type="button" className={useProjectContext ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseProjectContext((current) => !current)}>
-              Контекст проекта
+            <button type="button" className={useProjectContext ? "toggle-pill active" : "toggle-pill"} onClick={() => setUseProjectContext((v) => !v)}>
+              📁 Контекст проекта
             </button>
           </div>
 
-          {selectedFilesPreview.length ? (
+          {selectedFilesPreview.length > 0 ? (
             <div className="status-list">
               {selectedFilesPreview.map((file) => (
                 <div key={file.id} className="status-card">
                   <strong>{file.originalName}</strong>
-                  <span className="muted-text">Файл будет использован как дополнительный контекст.</span>
+                  <span className="muted-text">Будет добавлен как контекст</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="muted-text">Выберите проект или файлы только если они действительно нужны текущему запросу.</div>
+            <div className="muted-text">Выберите проект или файлы только если они нужны запросу.</div>
           )}
         </div>
       </aside>

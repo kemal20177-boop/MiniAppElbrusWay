@@ -2,7 +2,7 @@ import "server-only";
 import { runTextProvider } from "@/lib/providers/router-text";
 
 export async function generateVideoArtifact(params: {
-  mode: "storyboard" | "task";
+  mode: "storyboard";
   prompt: string;
   durationSec: number;
 }) {
@@ -20,7 +20,7 @@ export async function generateVideoArtifact(params: {
       flow: "video-planning",
       mode: params.mode,
       durationSec: params.durationSec,
-      readyForVideoOutput: false
+      readyForVideoOutput: true
     }
   };
 }
