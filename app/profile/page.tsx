@@ -86,14 +86,41 @@ export default function ProfilePage() {
 
       <div className="grid-4">
         {[
-          ["Баланс", String(profile?.tokenBalance ?? "—")],
-          ["Тариф", profile?.plan || "—"],
+          ["Баланс", null],
+          ["Тариф", null],
           ["Действует до", profile?.planExpiresAt ? new Date(profile.planExpiresAt).toLocaleDateString("ru-RU") : "Без срока"],
           ["Всего сообщений", String(stats?.totalMessages ?? "—")]
         ].map(([label, value]) => (
           <section key={label} className="surface">
             <div className="eyebrow">{label}</div>
-            <div className="surface-title" style={{ fontSize: "32px" }}>{value}</div>
+            {label === "Баланс" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 24, fontWeight: 700, color: "var(--brand-cyan)" }}>
+                  {profile ? (profile.tokenBalance / 1_000_000).toFixed(2) : "0.00"}M
+                </span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {profile ? profile.tokenBalance.toLocaleString("ru-RU") : "0"} токенов
+                </span>
+                {profile && profile.tokenBalance < 100_000 && (
+                  <a href="/rates" className="button-primary compact-button" style={{ width: "fit-content" }}>
+                    Пополнить баланс →
+                  </a>
+                )}
+              </div>
+            ) : label === "Тариф" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div className="surface-title" style={{ fontSize: "32px" }}>{profile?.plan || "—"}</div>
+                {profile?.planExpiresAt && (
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    до {new Date(profile.planExpiresAt).toLocaleDateString("ru-RU", {
+                      day: "numeric", month: "long", year: "numeric"
+                    })}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="surface-title" style={{ fontSize: "32px" }}>{value}</div>
+            )}
           </section>
         ))}
       </div>

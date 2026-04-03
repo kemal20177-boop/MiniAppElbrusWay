@@ -37,24 +37,34 @@ async function buildModelsPayload(plan: Plan) {
   }
 
   const [models, curated] = await Promise.all([getModels(plan), getCuratedModelSections(plan)]);
-  const cleaned = models.map((model) => {
-    const family = familyFromModel(model.id, model.name);
-    return {
-      id: model.id,
-      name: model.name,
-      label: model.name,
-      provider: model.provider,
-      family,
-      summary: summaryForFamily(family),
-      badge: model.supportsImageOutput ? "Медиа" : model.supportsReasoning ? "Сильная" : "Популярная",
-      featured: Boolean(model.isFeatured),
-      supportsChat: model.supportsTextOutput,
-      supportsImages: model.supportsImageOutput || model.supportsImages,
-      supportsAudio: model.supportsAudio || model.outputModalities.includes("audio"),
-      supportsVideo: model.supportsVideo,
-      supportsVision: model.supportsImages || model.supportsFiles
-    };
-  });
+  const cleaned = models
+    .filter((model) =>
+      Boolean(
+        model.supportsTextOutput ||
+        model.supportsImageOutput ||
+        model.supportsAudio ||
+        model.supportsVideo ||
+        model.supportsImages
+      )
+    )
+    .map((model) => {
+      const family = familyFromModel(model.id, model.name);
+      return {
+        id: model.id,
+        name: model.name,
+        label: model.name,
+        provider: model.provider,
+        family,
+        summary: summaryForFamily(family),
+        badge: model.supportsImageOutput ? "Медиа" : model.supportsReasoning ? "Сильная" : "Популярная",
+        featured: Boolean(model.isFeatured),
+        supportsChat: model.supportsTextOutput,
+        supportsImages: model.supportsImageOutput || model.supportsImages,
+        supportsAudio: model.supportsAudio || model.outputModalities.includes("audio"),
+        supportsVideo: model.supportsVideo,
+        supportsVision: model.supportsImages || model.supportsFiles
+      };
+    });
   const payload = { ok: true as const, data: cleaned, curated };
   responseCache.set(cacheKey, { expiresAt: Date.now() + RESPONSE_CACHE_TTL_MS, payload });
   return payload;

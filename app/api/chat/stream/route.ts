@@ -228,16 +228,67 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    const message = (error as Error).message;
-    return Response.json(
-      {
-        ok: false,
-        error: "CHAT_STREAM_FAILED",
-        message
+    const code = (error as Error).message;
+
+    const ERRORS: Record<string, { message: string; status: number }> = {
+      TOKEN_BALANCE_PRECHECK_FAILED: {
+        message: "Недостаточно токенов. Перейдите в раздел Тарифы чтобы пополнить баланс.",
+        status: 402
       },
-      {
-        status: message === "TOKENS_EXHAUSTED" ? 402 : 400
+      TOKENS_EXHAUSTED: {
+        message: "Токены закончились. Пополните баланс на странице Тарифов.",
+        status: 402
+      },
+      MODEL_NOT_AVAILABLE: {
+        message: "Выбранная модель временно недоступна. Попробуйте другую модель.",
+        status: 400
+      },
+      PLAN_MODEL_FORBIDDEN: {
+        message: "Эта модель доступна только на более высоком тарифе. Перейдите в раздел Тарифы.",
+        status: 403
+      },
+      RATE_LIMIT_EXCEEDED: {
+        message: "Слишком много запросов. Подождите несколько минут и попробуйте снова.",
+        status: 429
+      },
+      CHAT_RATE_LIMIT_EXCEEDED: {
+        message: "Превышен лимит запросов для вашего тарифа. Попробуйте позже.",
+        status: 429
+      },
+      SPENDING_LIMIT_PER_REQUEST_EXCEEDED: {
+        message: "Запрос слишком большой. Сократите текст или выберите более простую модель.",
+        status: 400
+      },
+      SPENDING_LIMIT_USER_DAILY_EXCEEDED: {
+        message: "Достигнут дневной лимит расходов. Попробуйте завтра или пополните баланс.",
+        status: 429
+      },
+      SPENDING_LIMIT_GLOBAL_DAILY_EXCEEDED: {
+        message: "Сервис перегружен. Попробуйте через несколько минут.",
+        status: 503
+      },
+      UNAUTHORIZED: {
+        message: "Необходимо войти в аккаунт.",
+        status: 401
+      },
+      USER_NOT_FOUND: {
+        message: "Аккаунт не найден. Попробуйте войти заново.",
+        status: 404
+      },
+      ROUTERAI_STREAM_EMPTY: {
+        message: "Модель не ответила. Попробуйте ещё раз или выберите другую модель.",
+        status: 502
       }
+    };
+
+    const resolved = ERRORS[code] || {
+      message: "Произошла ошибка. Попробуйте ещё раз.",
+      status: 400
+    };
+
+    return Response.json(
+      { ok: false, error: code, message: resolved.message },
+      { status: resolved.status }
     );
   }
 }

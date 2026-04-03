@@ -95,7 +95,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
         </div>
       </header>
 
-      <div className="app-shell-row">
+      <div className={showRail ? "app-shell-row app-shell-row--with-rail" : "app-shell-row"}>
         <div className="app-main">
           <main className="page-shell">{children}</main>
           <Footer />

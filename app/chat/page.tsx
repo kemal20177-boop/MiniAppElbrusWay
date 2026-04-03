@@ -191,7 +191,7 @@ export default function ChatPage() {
       setError(payload.message || "Не удалось загрузить модели");
       return;
     }
-    const nextModels = buildUiModels(payload.data || []);
+    const nextModels = buildUiModels(payload.data || []).filter((model) => model.supportsChat !== false);
     setModels(nextModels);
     if (nextModels[0]?.id) setSelectedModel(nextModels[0].id);
   }
@@ -296,6 +296,13 @@ export default function ChatPage() {
                   fullContent += piece;
                   setMessages([...nextMessages, { role: "assistant", content: fullContent }]);
                 }
+              }
+              if (currentEvent === "error") {
+                const errMsg = typeof parsed.message === "string"
+                  ? parsed.message
+                  : "Произошла ошибка. Попробуйте ещё раз.";
+                setError(errMsg);
+                setMessages(nextMessages);
               }
               if (currentEvent === "done" || currentEvent === "meta") {
                 if (parsed.chatId) newChatId = parsed.chatId as string;
@@ -542,7 +549,17 @@ export default function ChatPage() {
           </section>
         )}
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && (
+          <div className="error-banner" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span>⚠️</span>
+            <span>{error}</span>
+            {(error.includes("Тарифы") || error.includes("баланс")) && (
+              <a href="/rates" className="button-primary compact-button" style={{ marginLeft: "auto", fontSize: 12 }}>
+                Пополнить →
+              </a>
+            )}
+          </div>
+        )}
       </section>
 
       {/* История чатов */}
