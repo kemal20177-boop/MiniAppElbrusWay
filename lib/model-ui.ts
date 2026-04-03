@@ -3,6 +3,7 @@ import { quickModelFamilies } from "@/lib/site";
 export type UiModel = {
   id: string;
   name: string;
+  provider?: string;
   family: string;
   summary: string;
   badge: string;
@@ -19,10 +20,11 @@ export function mapModelToFamily(model: { id: string; name: string }) {
   if (source.includes("claude")) return "claude";
   if (source.includes("gemini")) return "gemini";
   if (source.includes("grok")) return "grok";
-  if (source.includes("banana pro")) return "nano-banana-pro";
-  if (source.includes("banana")) return "nano-banana-2";
+  if (source.includes("deepseek")) return "deepseek";
+  if (source.includes("nano-banana-pro") || source.includes("nanabananapro")) return "nano-banana-pro";
+  if (source.includes("nano-banana") || source.includes("nanobanana")) return "nano-banana-2";
   if (source.includes("gpt") || source.includes("openai") || source.includes("chatgpt")) return "chatgpt";
-  return "auto";
+  return "popular";
 }
 
 export function buildUiModels(models: Array<Record<string, unknown>>): UiModel[] {
@@ -39,6 +41,7 @@ export function buildUiModels(models: Array<Record<string, unknown>>): UiModel[]
     return {
       id,
       name,
+      provider: String(entry.provider || ""),
       family,
       summary,
       badge: String(entry.badge || (entry.featured ? "Топ" : "Доступно")),

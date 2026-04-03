@@ -52,55 +52,77 @@ function RegisterForm() {
 
   return (
     <section className="auth-shell">
-      <div className="auth-card">
-        <div className="eyebrow">Регистрация</div>
-        <h1 className="auth-title">Создать аккаунт и начать с первого запроса</h1>
-        <p className="auth-copy">После регистрации вы сразу попадёте в чат и сможете выбрать удобную модель для старта.</p>
+      <div className="auth-layout">
+        <div className="auth-intro surface">
+          <div className="eyebrow">Регистрация</div>
+          <h1 className="auth-title">Создайте аккаунт и начните с первого сообщения.</h1>
+          <p className="auth-copy">После регистрации вы сразу попадаете в новый chat start screen с понятным выбором модели и мягким рабочим интерфейсом.</p>
+          <div className="feature-list">
+            <div className="feature-row">
+              <strong>Один понятный вход</strong>
+              <span>Сначала сообщение и модель, а не россыпь вторичных панелей.</span>
+            </div>
+            <div className="feature-row">
+              <strong>Отдельные сценарии для медиа</strong>
+              <span>Изображения, аудио и video planning вынесены в понятные рабочие разделы.</span>
+            </div>
+            <div className="feature-row">
+              <strong>Проекты, файлы и документы сохраняются рядом</strong>
+              <span>Ничего не теряется между чатом и рабочими артефактами.</span>
+            </div>
+          </div>
+        </div>
 
-        <form onSubmit={onSubmit} className="auth-form">
-          <label className="field">
-            <span>Имя</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Как к вам обращаться" />
-          </label>
-          <label className="field">
-            <span>Email</span>
-            <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
-          </label>
-          <label className="field">
-            <span>Пароль</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Минимум 8 символов"
-            />
-          </label>
-          <label className="field">
-            <span>Повторите пароль</span>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Повторите пароль"
-            />
-          </label>
-          <label className="field">
-            <span>Реферальный код</span>
-            <input
-              value={referralCode}
-              onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
-              placeholder="Если есть"
-            />
-          </label>
-          {error ? <div className="error-banner">{error}</div> : null}
-          <button className="button-primary auth-submit" type="submit" disabled={loading}>
-            {loading ? "Создаём аккаунт..." : "Создать аккаунт"}
-          </button>
-        </form>
+        <div className="auth-card">
+          <div className="eyebrow">Новый аккаунт</div>
+          <h2 className="surface-title">Создать аккаунт</h2>
+          <form onSubmit={onSubmit} className="auth-form">
+            <label className="field">
+              <span>Имя</span>
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Как к вам обращаться" autoComplete="name" />
+            </label>
+            <label className="field">
+              <span>Email</span>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" />
+            </label>
+            <label className="field">
+              <span>Пароль</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Минимум 8 символов"
+                autoComplete="new-password"
+              />
+            </label>
+            <label className="field">
+              <span>Повторите пароль</span>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Повторите пароль"
+                autoComplete="new-password"
+              />
+            </label>
+            <label className="field">
+              <span>Реферальный код</span>
+              <input
+                value={referralCode}
+                onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
+                placeholder="Если есть"
+              />
+            </label>
+            {error ? <div className="error-banner">{error}</div> : null}
+            <button className="button-primary auth-submit" type="submit" disabled={loading}>
+              {loading ? "Создаём аккаунт..." : "Создать и открыть чат"}
+            </button>
+          </form>
 
-        <div className="auth-footer">
-          <span>Уже есть аккаунт?</span>
-          <Link href="/auth/login">Войти</Link>
+          <div className="auth-footer">
+            <span>Уже есть аккаунт?</span>
+            <Link href="/auth/login">Войти</Link>
+          </div>
         </div>
       </div>
     </section>

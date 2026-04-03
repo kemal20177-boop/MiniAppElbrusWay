@@ -24,6 +24,13 @@ export const loginSchema = z.object({
   password: z.string().min(8, { message: "Пароль должен содержать минимум 8 символов" }).max(128)
 });
 
+export function getFirstValidationMessage(error: unknown, fallback = "Проверьте заполнение формы") {
+  if (error instanceof z.ZodError) {
+    return error.issues[0]?.message || fallback;
+  }
+  return fallback;
+}
+
 export const chatSchema = z.object({
   chatId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
@@ -275,10 +282,11 @@ export const toolAudioSchema = z.object({
 }, { message: "Нужно выбрать аудиофайл или ввести текст" });
 
 export const toolVideoSchema = z.object({
-  mode: z.enum(["storyboard", "task"]),
+  mode: z.enum(["generate", "storyboard"]),
   prompt: z.string().trim().min(2).max(4000),
   projectId: z.string().min(1).optional(),
-  durationSec: z.number().int().min(5).max(180).default(15)
+  durationSec: z.number().int().min(5).max(180).default(15),
+  model: z.string().min(3).optional()
 });
 
 export const toolVisionSchema = z.object({

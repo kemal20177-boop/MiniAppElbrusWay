@@ -3,99 +3,82 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { AppIcon } from "@/components/app/icon";
 
-type SidebarItem = {
+type NavItem = {
   href?: string;
+  icon: string;
   label: string;
-  icon: Parameters<typeof AppIcon>[0]["name"];
+  section: "main" | "workspace" | "account";
   action?: "logout";
 };
 
-const groups: Array<{ title: string; items: SidebarItem[] }> = [
-  {
-    title: "Основное",
-    items: [
-      { href: "/chat?new=1", label: "Новый чат", icon: "plus" },
-      { href: "/chat", label: "Чат", icon: "chat" },
-      { href: "/projects", label: "Проекты", icon: "folder" },
-      { href: "/files", label: "Файлы", icon: "file" },
-      { href: "/documents", label: "Документы", icon: "doc" },
-      { href: "/canvas", label: "Редактор", icon: "edit" }
-    ]
-  },
-  {
-    title: "Нейросети",
-    items: [
-      { href: "/chat?family=auto", label: "Авто", icon: "spark" },
-      { href: "/chat?family=chatgpt", label: "ChatGPT", icon: "chat" },
-      { href: "/chat?family=claude", label: "Claude", icon: "doc" },
-      { href: "/chat?family=gemini", label: "Gemini", icon: "grid" },
-      { href: "/chat?family=grok", label: "Grok", icon: "spark" }
-    ]
-  },
-  {
-    title: "Медиа",
-    items: [
-      { href: "/tools/image", label: "Создать изображение", icon: "image" },
-      { href: "/tools/image?mode=image-to-image", label: "Редактировать изображение", icon: "image-edit" },
-      { href: "/tools/video", label: "Видео", icon: "video" },
-      { href: "/tools/audio", label: "Аудио", icon: "audio" },
-      { href: "/tools/vision", label: "Анализ изображений", icon: "vision" }
-    ]
-  },
-  {
-    title: "Аккаунт",
-    items: [
-      { href: "/rates", label: "Тарифы", icon: "coin" },
-      { href: "/profile", label: "Аккаунт", icon: "user" },
-      { href: "/settings", label: "Настройки", icon: "settings" },
-      { label: "Выйти", icon: "logout", action: "logout" }
-    ]
-  }
+const navItems: NavItem[] = [
+  { href: "/chat", icon: "💬", label: "Чат", section: "main" },
+  { href: "/tools/image", icon: "🖼", label: "Изображения", section: "main" },
+  { href: "/tools/video", icon: "🎬", label: "Видео", section: "main" },
+  { href: "/tools/audio", icon: "🎵", label: "Аудио", section: "main" },
+  { href: "/tools/vision", icon: "👁", label: "Vision", section: "main" },
+  { href: "/projects", icon: "📁", label: "Проекты", section: "workspace" },
+  { href: "/files", icon: "📄", label: "Файлы", section: "workspace" },
+  { href: "/documents", icon: "📝", label: "Документы", section: "workspace" },
+  { href: "/canvas", icon: "✏️", label: "Canvas", section: "workspace" },
+  { href: "/rates", icon: "💳", label: "Тарифы", section: "account" },
+  { href: "/profile", icon: "👤", label: "Профиль", section: "account" },
+  { icon: "↩", label: "Выйти", section: "account", action: "logout" }
 ];
 
-function SidebarLink({
+const mobileItems = navItems.filter((item) => ["/chat", "/tools/image", "/tools/video", "/files", "/profile"].includes(item.href || ""));
+
+function isActivePath(pathname: string, href?: string) {
+  if (!href) return false;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavEntry({
   item,
   pathname,
-  onAction
+  onAction,
+  className
 }: {
-  item: SidebarItem;
+  item: NavItem;
   pathname: string;
-  onAction: (action: NonNullable<SidebarItem["action"]>) => void;
+  onAction: (action: NonNullable<NavItem["action"]>) => void;
+  className: string;
 }) {
-  const active = item.href ? pathname === item.href || pathname.startsWith(`${item.href}/`) : false;
+  const active = isActivePath(pathname, item.href);
 
   if (item.action) {
     return (
-      <button type="button" className="nav-link" onClick={() => onAction(item.action!)}>
-        <span className="nav-link-icon">
-          <AppIcon name={item.icon} size={18} />
-        </span>
+      <button type="button" className={className} onClick={() => onAction(item.action!)}>
+        <span className="nav-item-icon">{item.icon}</span>
         <span>{item.label}</span>
       </button>
     );
   }
 
   return (
-    <Link href={item.href || "#"} className={active ? "nav-link nav-link-active" : "nav-link"}>
-      <span className="nav-link-icon">
-        <AppIcon name={item.icon} size={18} />
-      </span>
+    <Link href={item.href || "#"} className={active ? `${className} active` : className}>
+      <span className="nav-item-icon">{item.icon}</span>
       <span>{item.label}</span>
     </Link>
   );
 }
 
-export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  showRail
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  showRail: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function handleAction(action: "logout") {
-    if (action !== "logout") {
-      return;
-    }
+    if (action !== "logout") return;
     setLoading(true);
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/auth/login");
@@ -104,6 +87,29 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
   return (
     <>
+      {showRail ? (
+        <aside className="nav-rail">
+          <div className="nav-section-label">Main</div>
+          {navItems.filter((item) => item.section === "main").map((item) => (
+            <NavEntry key={`${item.section}-${item.label}`} item={item} pathname={pathname} onAction={handleAction} className="nav-item" />
+          ))}
+
+          <div className="nav-section-label">Workspace</div>
+          {navItems.filter((item) => item.section === "workspace").map((item) => (
+            <NavEntry key={`${item.section}-${item.label}`} item={item} pathname={pathname} onAction={handleAction} className="nav-item" />
+          ))}
+
+          <div className="nav-section-label">Account</div>
+          {navItems.filter((item) => item.section === "account").map((item) => (
+            <NavEntry key={`${item.section}-${item.label}`} item={item} pathname={pathname} onAction={handleAction} className="nav-item" />
+          ))}
+
+          <div className="muted-text" style={{ marginTop: "auto", padding: "12px 12px 0" }}>
+            {loading ? "Выходим..." : "Быстрый доступ к чату, медиа и рабочим разделам."}
+          </div>
+        </aside>
+      ) : null}
+
       <div className={isOpen ? "sidebar-backdrop visible" : "sidebar-backdrop"} onClick={onClose} />
       <aside className={isOpen ? "sidebar-frame open" : "sidebar-frame"}>
         <div className="sidebar-brand">
@@ -111,29 +117,43 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             <span className="brand-mark">E</span>
             <span>
               <strong>ElbrusWay AI</strong>
-              <small>Понятный AI-сервис</small>
+              <small>AI без барьеров</small>
             </span>
           </Link>
-          <button type="button" className="icon-button sidebar-close" onClick={onClose}>
-            <AppIcon name="close" size={18} />
+          <button type="button" className="icon-button" onClick={onClose}>
+            ✕
           </button>
         </div>
 
-        <nav className="sidebar-groups">
-          {groups.map((group) => (
-            <section key={group.title}>
-              <div className="sidebar-section-title">{group.title}</div>
-              <div className="sidebar-links">
-                {group.items.map((item) => (
-                  <SidebarLink key={item.label} item={item} pathname={pathname} onAction={handleAction} />
-                ))}
+        <div className="section-stack">
+          {(["main", "workspace", "account"] as const).map((section) => (
+            <div key={section}>
+              <div className="nav-section-label">{section}</div>
+              <div className="section-stack" style={{ gap: 4 }}>
+                {navItems
+                  .filter((item) => item.section === section)
+                  .map((item) => (
+                    <NavEntry
+                      key={`drawer-${section}-${item.label}`}
+                      item={item}
+                      pathname={pathname}
+                      onAction={handleAction}
+                      className="nav-item"
+                    />
+                  ))}
               </div>
-            </section>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      {showRail ? (
+        <nav className="mobile-bottom-nav" aria-label="Основная навигация">
+          {mobileItems.map((item) => (
+            <NavEntry key={`mobile-${item.label}`} item={item} pathname={pathname} onAction={handleAction} className="mobile-nav-item" />
           ))}
         </nav>
-
-        <div className="sidebar-footer">{loading ? "Выходим..." : "Все материалы доступны в одном кабинете."}</div>
-      </aside>
+      ) : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ModelPicker } from "@/components/app/model-picker";
@@ -92,7 +93,7 @@ export default function ImageToolPage() {
         setActiveJobId("");
         await loadJobs();
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId]);
 
@@ -168,6 +169,7 @@ export default function ImageToolPage() {
             onChange={setSelectedModel}
             title="Выберите модель для изображения"
             description="Nano Banana 2 и Nano Banana Pro выделены как быстрый вход для визуальных сценариев."
+            mode="image"
           />
 
           <form onSubmit={onSubmit} className="section-stack" style={{ marginTop: 18 }}>
@@ -238,7 +240,14 @@ export default function ImageToolPage() {
           <h2 className="surface-title">Предпросмотр</h2>
           <div className="preview-frame" style={{ minHeight: 320, display: "grid", placeItems: "center" }}>
             {resultFile?.previewUrl ? (
-              <img src={resultFile.previewUrl} alt={resultFile.originalName} />
+              <Image
+                src={resultFile.previewUrl}
+                alt={resultFile.originalName}
+                width={1200}
+                height={1200}
+                unoptimized
+                style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
+              />
             ) : (
               <div className="muted-text" style={{ padding: 24, textAlign: "center" }}>
                 После завершения генерации результат появится здесь.

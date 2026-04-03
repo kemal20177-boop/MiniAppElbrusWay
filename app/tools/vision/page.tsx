@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 
 type UserFileItem = {
@@ -63,7 +64,7 @@ export default function VisionPage() {
         setError(job.errorMessage || "Не удалось завершить анализ");
         setActiveJobId("");
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId]);
 
@@ -131,7 +132,14 @@ export default function VisionPage() {
             <form onSubmit={onSubmit} className="section-stack">
               {selected.previewUrl ? (
                 <div className="preview-frame">
-                  <img src={selected.previewUrl} alt={selected.originalName} />
+                  <Image
+                    src={selected.previewUrl}
+                    alt={selected.originalName}
+                    width={1200}
+                    height={1200}
+                    unoptimized
+                    style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }}
+                  />
                 </div>
               ) : null}
               <div className="family-row">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Quote = {
   promoCode: {
@@ -38,6 +38,13 @@ type TokenPackage = {
   quote: Quote | null;
 };
 
+const tokenPackages = [
+  { id: "pack_5m", label: "5 млн токенов", price: 149 },
+  { id: "pack_20m", label: "20 млн токенов", price: 490 },
+  { id: "pack_50m", label: "50 млн токенов", price: 990 },
+  { id: "pack_200m", label: "200 млн токенов", price: 2990 }
+] as const;
+
 export default function RatesPage() {
   const [plans, setPlans] = useState<PlanConfig[]>([]);
   const [packages, setPackages] = useState<TokenPackage[]>([]);
@@ -45,6 +52,7 @@ export default function RatesPage() {
   const [promoCode, setPromoCode] = useState("");
   const [error, setError] = useState("");
   const [quoteMessage, setQuoteMessage] = useState("");
+  const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -56,9 +64,7 @@ export default function RatesPage() {
 
   async function loadQuote(code: string) {
     const params = new URLSearchParams();
-    if (code.trim()) {
-      params.set("promoCode", code.trim().toUpperCase());
-    }
+    if (code.trim()) params.set("promoCode", code.trim().toUpperCase());
 
     const response = await fetch(`/api/payments/quote${params.toString() ? `?${params.toString()}` : ""}`);
     const payload = await response.json();
@@ -116,105 +122,133 @@ export default function RatesPage() {
     }
   }
 
+  const packageCards = useMemo(() => {
+    if (packages.length > 0) return packages;
+    return tokenPackages.map((item) => ({
+      id: item.id,
+      name: item.label,
+      tokens: Number(item.label.replace(/[^\d]/g, "")) * 1_000_000,
+      priceRub: item.price,
+      quote: null
+    }));
+  }, [packages]);
+
   return (
-    <main className="shell" style={{ padding: "18px 0 56px" }}>
-      <section className="panel" style={{ padding: 28 }}>
-        <div className="badge">Тарифы</div>
-        <h1 className="section-title" style={{ marginTop: 16 }}>Подписки и пакеты токенов</h1>
-        <p className="section-copy" style={{ maxWidth: 760 }}>
-          Тарифы считаются от реальных plan config на сервере. Промокод сразу пересчитывает цену и бонусы,
-          а оплата создается уже с финальной суммой.
+    <div className="page-stack">
+      <section className="surface-elevated">
+        <div className="eyebrow">Тарифы</div>
+        <h1 className="surface-title">Подписки и пакеты токенов</h1>
+        <p className="surface-copy">
+          Выберите удобный режим оплаты, подключите тариф и при необходимости докупайте токены отдельными пакетами.
         </p>
+
+        <div className="toolbar-row" style={{ marginTop: 16 }}>
+          <div className="toggle-row">
+            <button type="button" className={billingCycle === "month" ? "toggle-pill on" : "toggle-pill"} onClick={() => setBillingCycle("month")}>
+              Месяц
+            </button>
+            <button type="button" className={billingCycle === "year" ? "toggle-pill on" : "toggle-pill"} onClick={() => setBillingCycle("year")}>
+              Год
+            </button>
+          </div>
+          {billingCycle === "year" ? <span className="success-text">Скидка 20% при расчёте на год</span> : null}
+        </div>
+
         <div style={{ marginTop: 18, maxWidth: 360 }}>
           <input
             value={promoCode}
             onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
             placeholder="Промокод"
-            style={{
-              width: "100%",
-              minHeight: 48,
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-              color: "var(--text-primary)",
-              padding: "0 14px"
-            }}
           />
         </div>
-        {quoteMessage ? <div style={{ color: "var(--success)", marginTop: 12 }}>{quoteMessage}</div> : null}
-        {error ? <div style={{ color: "var(--error)", marginTop: 12 }}>{error}</div> : null}
-        <div className="grid-4" style={{ marginTop: 28 }}>
+
+        {quoteMessage ? <div className="success-banner" style={{ marginTop: 12 }}>{quoteMessage}</div> : null}
+        {error ? <div className="error-banner" style={{ marginTop: 12 }}>{error}</div> : null}
+      </section>
+
+      <section className="surface">
+        <div className="eyebrow">Подписки</div>
+        <h2 className="surface-title">План для старта, работы и высокой нагрузки</h2>
+        <div className="pricing-grid">
           {plans.map((plan) => {
             const quote = plan.quote;
-            const price = quote?.finalAmount ?? plan.priceRub;
-            const priceChanged = typeof quote?.discountAmount === "number" && quote.discountAmount > 0;
-            const tokens = quote?.finalTokens ?? plan.tokensPerMonth;
+            const monthPrice = quote?.finalAmount ?? plan.priceRub;
+            const displayedPrice = billingCycle === "year" ? Math.round(monthPrice * 12 * 0.8) : monthPrice;
+            const displayedLabel = billingCycle === "year" ? "в год" : "в месяц";
+            const tokens = (quote?.finalTokens ?? plan.tokensPerMonth) * (billingCycle === "year" ? 12 : 1);
+            const featured = plan.basePlan === "PRO";
 
             return (
-              <div key={plan.id} className="card">
-                <div className="muted">{plan.name}</div>
-                {priceChanged ? (
-                  <div className="muted" style={{ marginTop: 8, textDecoration: "line-through" }}>{plan.priceRub} ₽</div>
-                ) : null}
-                <div style={{ fontSize: 30, fontWeight: 800, marginTop: 8 }}>{price} ₽</div>
-                <div className="muted" style={{ marginTop: 6 }}>
-                  {tokens.toLocaleString("ru-RU")} токенов · {plan.requestsPerHour}/час
+              <article key={plan.id} className={featured ? "pricing-card featured" : "pricing-card"}>
+                <div className="pricing-head">
+                  <strong>{plan.name}</strong>
+                  <span>{displayedPrice} ₽</span>
                 </div>
+                <div className="muted-text">{displayedLabel}</div>
+                <div className="surface-copy">{tokens.toLocaleString("ru-RU")} токенов · {plan.requestsPerHour}/час</div>
                 {quote?.bonusTokens ? (
-                  <div className="muted" style={{ marginTop: 6 }}>
-                    + {quote.bonusTokens.toLocaleString("ru-RU")} бонусных токенов
-                  </div>
+                  <div className="success-text">+ {quote.bonusTokens.toLocaleString("ru-RU")} бонусных токенов</div>
                 ) : null}
-                <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-                  {(plan.features || [plan.description]).map((feature) => (
-                    <div key={feature}>✓ {feature}</div>
+                <div className="feature-list compact-list">
+                  {(plan.features.length ? plan.features : [plan.description]).map((feature) => (
+                    <div key={feature} className="feature-row">
+                      <span>{feature}</span>
+                    </div>
                   ))}
                 </div>
                 <button
                   className="button-primary"
-                  style={{ marginTop: 20, width: "100%" }}
                   onClick={() => void startCheckout({ planConfigId: plan.id }, `plan:${plan.id}`)}
-                  disabled={loadingKey !== null || price === 0}
+                  disabled={loadingKey !== null || monthPrice === 0}
                 >
-                  {price === 0 ? "Доступен по умолчанию" : loadingKey === `plan:${plan.id}` ? "Переход..." : "Выбрать"}
+                  {monthPrice === 0 ? "Доступен по умолчанию" : loadingKey === `plan:${plan.id}` ? "Переход..." : "Выбрать"}
                 </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="grid-4" style={{ marginTop: 24 }}>
-          {packages.map((pack) => {
-            const quote = pack.quote;
-            const price = quote?.finalAmount ?? pack.priceRub;
-            const tokens = quote?.finalTokens ?? pack.tokens;
-            const priceChanged = typeof quote?.discountAmount === "number" && quote.discountAmount > 0;
-
-            return (
-              <div key={pack.id} className="card">
-                <div className="muted">Пакет</div>
-                <div style={{ fontSize: 26, fontWeight: 800, marginTop: 8 }}>{tokens.toLocaleString("ru-RU")} токенов</div>
-                {priceChanged ? (
-                  <div className="muted" style={{ marginTop: 6, textDecoration: "line-through" }}>{pack.priceRub} ₽</div>
-                ) : null}
-                <div className="muted" style={{ marginTop: 6 }}>{price} ₽</div>
-                {quote?.bonusTokens ? (
-                  <div className="muted" style={{ marginTop: 6 }}>
-                    Бонус: {quote.bonusTokens.toLocaleString("ru-RU")} токенов
-                  </div>
-                ) : null}
-                <button
-                  className="button-primary"
-                  style={{ marginTop: 20, width: "100%" }}
-                  onClick={() => void startCheckout({ packageId: pack.id }, `pack:${pack.id}`)}
-                  disabled={loadingKey !== null}
-                >
-                  {loadingKey === `pack:${pack.id}` ? "Переход..." : "Купить"}
-                </button>
-              </div>
+              </article>
             );
           })}
         </div>
       </section>
-    </main>
+
+      <section className="surface">
+        <div className="eyebrow">Пакеты</div>
+        <h2 className="surface-title">Разовые пакеты токенов</h2>
+        <div className="pricing-grid">
+          {packageCards.map((pack, index) => {
+            const quote = pack.quote;
+            const price = quote?.finalAmount ?? pack.priceRub;
+            const tokens = quote?.finalTokens ?? pack.tokens;
+            const canCheckout = packages.some((entry) => entry.id === pack.id);
+
+            return (
+              <article key={pack.id} className={index === 1 ? "pricing-card featured" : "pricing-card"}>
+                <div className="pricing-head">
+                  <strong>{pack.name}</strong>
+                  <span>{price} ₽</span>
+                </div>
+                <div className="surface-copy">{tokens.toLocaleString("ru-RU")} токенов</div>
+                {quote?.bonusTokens ? (
+                  <div className="success-text">+ {quote.bonusTokens.toLocaleString("ru-RU")} бонусных токенов</div>
+                ) : null}
+                <div className="feature-list compact-list">
+                  <div className="feature-row">
+                    <span>Подходит для разовой докупки без смены тарифа.</span>
+                  </div>
+                  <div className="feature-row">
+                    <span>Токены сразу зачисляются на баланс аккаунта.</span>
+                  </div>
+                </div>
+                <button
+                  className="button-primary"
+                  onClick={() => canCheckout && void startCheckout({ packageId: pack.id }, `pack:${pack.id}`)}
+                  disabled={loadingKey !== null || !canCheckout}
+                >
+                  {!canCheckout ? "Скоро" : loadingKey === `pack:${pack.id}` ? "Переход..." : "Купить"}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }

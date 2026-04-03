@@ -6,49 +6,112 @@ export const siteConfig = {
 
 export const defaultModelId = "openai/gpt-4o-mini";
 
-export const quickModelFamilies = [
+export const modelPickerTabs = [
   {
     key: "auto",
-    label: "Авто",
-    title: "Подобрать лучшую",
-    summary: "Если не хочется разбираться в различиях, сервис подскажет удачный вариант для старта."
+    label: "Все",
+    title: "Все модели",
+    summary: "Показать все доступные модели"
   },
   {
     key: "chatgpt",
     label: "ChatGPT",
     title: "ChatGPT",
-    summary: "Универсальный выбор для повседневных задач, идей, текста и быстрых ответов."
+    summary: "Универсальный выбор для чата и задач"
   },
   {
     key: "claude",
     label: "Claude",
     title: "Claude",
-    summary: "Подходит для длинных материалов, аккуратных формулировок и сложных разборов."
+    summary: "Лучший для кода и длинных текстов"
   },
   {
     key: "gemini",
     label: "Gemini",
     title: "Gemini",
-    summary: "Удобен для мультимодальных задач, работы с файлами и визуальным контентом."
+    summary: "Мультимодальный AI от Google"
   },
   {
     key: "grok",
     label: "Grok",
     title: "Grok",
-    summary: "Быстрый вариант для свежих идей, коротких ответов и альтернативного стиля общения."
+    summary: "Быстрый AI от xAI"
+  },
+  {
+    key: "deepseek",
+    label: "DeepSeek",
+    title: "DeepSeek",
+    summary: "Мощный и экономичный"
   },
   {
     key: "nano-banana-2",
     label: "Nano Banana 2",
     title: "Google Nano Banana 2",
-    summary: "Быстрая модель для генерации изображений и визуальных экспериментов."
+    summary: "Генерация изображений"
   },
   {
     key: "nano-banana-pro",
     label: "Nano Banana Pro",
     title: "Google Nano Banana Pro",
-    summary: "Продвинутый вариант для более выразительных и детальных изображений."
+    summary: "Продвинутые изображения"
   }
+] as const;
+
+export const quickModelFamilies = [
+  {
+    key: "auto",
+    label: "Все",
+    title: "Все модели",
+    summary: "Показать все доступные модели"
+  },
+  {
+    key: "chatgpt",
+    label: "ChatGPT",
+    title: "ChatGPT",
+    summary: "Универсальный выбор для чата и задач"
+  },
+  {
+    key: "claude",
+    label: "Claude",
+    title: "Claude",
+    summary: "Лучший для кода и длинных текстов"
+  },
+  {
+    key: "gemini",
+    label: "Gemini",
+    title: "Gemini",
+    summary: "Мультимодальный AI от Google"
+  },
+  {
+    key: "grok",
+    label: "Grok",
+    title: "Grok",
+    summary: "Быстрый AI от xAI"
+  },
+  {
+    key: "deepseek",
+    label: "DeepSeek",
+    title: "DeepSeek",
+    summary: "Мощный и экономичный"
+  },
+  {
+    key: "nano-banana-2",
+    label: "Nano Banana 2",
+    title: "Google Nano Banana 2",
+    summary: "Генерация изображений"
+  },
+  {
+    key: "nano-banana-pro",
+    label: "Nano Banana Pro",
+    title: "Google Nano Banana Pro",
+    summary: "Продвинутые изображения"
+  }
+] as const;
+
+export const videoModels = [
+  { id: "google/veo-3", name: "Google Veo 3", provider: "Google", description: "Кинематографическое видео высокого качества", minPlan: "PRO" },
+  { id: "kling/kling-2.6", name: "Kling 2.6", provider: "Kling AI", description: "Динамичное и реалистичное видео", minPlan: "PRO" },
+  { id: "minimax/video-01", name: "MiniMax Video", provider: "MiniMax", description: "Быстрая генерация коротких роликов", minPlan: "BASE" },
 ] as const;
 
 export const planCatalog = [

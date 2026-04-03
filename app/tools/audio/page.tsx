@@ -85,7 +85,7 @@ export default function AudioToolPage() {
         setActiveJobId("");
         await loadJobs();
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [activeJobId, mode]);
 
@@ -170,6 +170,7 @@ export default function AudioToolPage() {
               onChange={setSelectedModel}
               title="Выберите модель для аудио"
               description="Отдельный выбор для расшифровки и озвучки без технических названий внутри интерфейса."
+              mode="audio"
             />
           ) : null}
 
