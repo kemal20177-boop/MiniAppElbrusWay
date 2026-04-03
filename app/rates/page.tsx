@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { tokenPackages } from "@/lib/plans";
 
 type Quote = {
   promoCode: {
@@ -37,13 +38,6 @@ type TokenPackage = {
   priceRub: number;
   quote: Quote | null;
 };
-
-const tokenPackages = [
-  { id: "pack_5m", label: "5 млн токенов", price: 149 },
-  { id: "pack_20m", label: "20 млн токенов", price: 490 },
-  { id: "pack_50m", label: "50 млн токенов", price: 990 },
-  { id: "pack_200m", label: "200 млн токенов", price: 2990 }
-] as const;
 
 export default function RatesPage() {
   const [plans, setPlans] = useState<PlanConfig[]>([]);
@@ -122,13 +116,17 @@ export default function RatesPage() {
     }
   }
 
+  async function handleBuy(payload: { packageId: string }) {
+    await startCheckout(payload, payload.packageId);
+  }
+
   const packageCards = useMemo(() => {
     if (packages.length > 0) return packages;
     return tokenPackages.map((item) => ({
       id: item.id,
-      name: item.label,
-      tokens: Number(item.label.replace(/[^\d]/g, "")) * 1_000_000,
-      priceRub: item.price,
+      name: item.name,
+      tokens: item.tokens,
+      priceRub: item.priceRub,
       quote: null
     }));
   }, [packages]);
@@ -247,6 +245,32 @@ export default function RatesPage() {
               </article>
             );
           })}
+        </div>
+      </section>
+
+      <section className="surface" style={{ marginTop: 8 }}>
+        <div className="eyebrow">Разовые пакеты</div>
+        <h2 className="surface-title">Купить токены без подписки</h2>
+        <p className="surface-copy">Токены не имеют срока действия. Подходят если нужно редко, но много.</p>
+        <div className="pricing-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", marginTop: 16 }}>
+          {tokenPackages.map((pack) => (
+            <div key={pack.id} className="pricing-card">
+              <div className="pricing-head">
+                <strong>{pack.name}</strong>
+                <span>{pack.priceRub} ₽</span>
+              </div>
+              <div className="muted-text" style={{ fontSize: 12 }}>Без срока действия</div>
+              <button
+                type="button"
+                className="button-secondary"
+                style={{ width: "100%", marginTop: "auto" }}
+                disabled={!!loadingKey}
+                onClick={() => void handleBuy({ packageId: pack.id })}
+              >
+                {loadingKey === pack.id ? "Открываем..." : "Купить"}
+              </button>
+            </div>
+          ))}
         </div>
       </section>
     </div>

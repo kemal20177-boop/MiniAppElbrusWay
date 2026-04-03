@@ -50,7 +50,7 @@ function inferMaxTokens(model: RouterModelCatalogItem) {
     return 4096;
   }
 
-  return Math.min(8192, Math.max(1024, Math.floor(model.contextLength / 4)));
+  return Math.min(32768, Math.max(1024, Math.floor(model.contextLength / 8)));
 }
 
 function toModelConfigCreateManyInput(model: RouterModelCatalogItem) {
@@ -66,7 +66,7 @@ function toModelConfigCreateManyInput(model: RouterModelCatalogItem) {
     markupFactor: 1,
     inputPrice: Number(model.pricing?.prompt || 0),
     outputPrice: Number(model.pricing?.completion || 0),
-    maxTokens: inferMaxTokens(model),
+    maxTokens: Math.max(1024, inferMaxTokens(model)),
     supportsImages: model.supportsImages,
     supportsFiles: model.supportsFiles,
     supportsAudio: model.supportsAudio || model.outputModalities.includes("audio"),

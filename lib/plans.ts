@@ -5,47 +5,47 @@ export const plans: Record<
   { name: string; priceRub: number; tokensPerMonth: number; requestsPerHour: number; description: string }
 > = {
   FREE: {
-    name: "Free",
+    name: "Старт",
     priceRub: 0,
-    tokensPerMonth: 50000,
-    requestsPerHour: 7,
-    description: "Базовый доступ для знакомства с платформой"
+    tokensPerMonth: 50_000,
+    requestsPerHour: 10,
+    description: "Базовый доступ для знакомства"
   },
   BASE: {
-    name: "Base",
+    name: "Личный",
     priceRub: 490,
     tokensPerMonth: 15_000_000,
-    requestsPerHour: 200,
-    description: "Повседневная работа с текстом, кодом и web-поиском"
+    requestsPerHour: 300,
+    description: "Повседневная работа с текстом и кодом"
   },
   PRO: {
-    name: "Pro",
+    name: "Профи",
     priceRub: 990,
     tokensPerMonth: 40_000_000,
-    requestsPerHour: 500,
-    description: "Интенсивное использование, API-ключи и приоритет"
+    requestsPerHour: 600,
+    description: "Интенсивное использование всех возможностей"
   },
   ULTRA: {
-    name: "Ultra",
+    name: "Команда",
     priceRub: 1990,
     tokensPerMonth: 100_000_000,
-    requestsPerHour: 1000,
-    description: "Командная работа, документы и мультимодальность"
+    requestsPerHour: 1200,
+    description: "Командная работа и максимальные лимиты"
   },
   BUSINESS: {
-    name: "Business",
+    name: "Бизнес",
     priceRub: 9900,
     tokensPerMonth: 700_000_000,
     requestsPerHour: 5000,
-    description: "Корпоративный лимит и повышенная квота запросов"
+    description: "Корпоративный лимит и приоритет"
   }
 };
 
 export const tokenPackages = [
-  { id: "pack_5m", name: "5M tokens", tokens: 5_000_000, priceRub: 149 },
-  { id: "pack_20m", name: "20M tokens", tokens: 20_000_000, priceRub: 490 },
-  { id: "pack_50m", name: "50M tokens", tokens: 50_000_000, priceRub: 990 },
-  { id: "pack_200m", name: "200M tokens", tokens: 200_000_000, priceRub: 2990 }
+  { id: "pack_5m", name: "5M токенов", tokens: 5_000_000, priceRub: 149 },
+  { id: "pack_20m", name: "20M токенов", tokens: 20_000_000, priceRub: 490 },
+  { id: "pack_50m", name: "50M токенов", tokens: 50_000_000, priceRub: 990 },
+  { id: "pack_200m", name: "200M токенов", tokens: 200_000_000, priceRub: 2990 }
 ] as const;
 
 export function getPlanExpiry(months = 1) {

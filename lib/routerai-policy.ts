@@ -11,24 +11,23 @@ const planRank: Record<Plan, number> = {
 };
 
 const planMaxCompletionTokens: Record<Plan, number> = {
-  FREE: 1024,
-  BASE: 2048,
-  PRO: 4096,
-  ULTRA: 8192,
-  BUSINESS: 8192
+  FREE: 2048,
+  BASE: 4096,
+  PRO: 8192,
+  ULTRA: 16384,
+  BUSINESS: 32768
 };
 
+const FREE_DAILY_TOKENS = 50_000;
+
 function estimatePromptTokens(messages: Array<{ content: string }>) {
-  const characters = messages.reduce((sum, message) => sum + message.content.length, 0);
+  const characters = messages.reduce((sum, m) => sum + m.content.length, 0);
   return Math.max(1, Math.ceil(characters / 3));
 }
 
 function parseLimit(name: string) {
   const raw = process.env[name];
-  if (!raw) {
-    return null;
-  }
-
+  if (!raw) return null;
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : null;
 }
@@ -41,7 +40,36 @@ export function getPlanCompletionLimit(plan: Plan) {
   return planMaxCompletionTokens[plan];
 }
 
-export async function getAllowedModelConfig(user: Pick<User, "id" | "plan">, modelId: string) {
+export async function ensureFreePlanDailyTokens(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { plan: true, tokenBalance: true, freeTokenResetAt: true }
+  });
+
+  if (!user || user.plan !== "FREE") return;
+
+  const now = new Date();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  const lastReset = user.freeTokenResetAt;
+  const needsReset = !lastReset || lastReset < todayStart;
+
+  if (needsReset) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        tokenBalance: FREE_DAILY_TOKENS,
+        freeTokenResetAt: now
+      }
+    });
+  }
+}
+
+export async function getAllowedModelConfig(
+  user: Pick<User, "id" | "plan">,
+  modelId: string
+) {
   const modelConfig = await findModelConfigById(modelId);
 
   if (!modelConfig || !modelConfig.isEnabled) {
@@ -60,11 +88,31 @@ export async function enforceRouterPolicy(params: {
   modelConfig: Pick<ModelConfig, "id" | "inputPrice" | "outputPrice" | "maxTokens">;
   messages: Array<{ content: string }>;
 }) {
+  if (params.user.plan === "FREE") {
+    await ensureFreePlanDailyTokens(params.user.id);
+    const freshUser = await prisma.user.findUnique({
+      where: { id: params.user.id },
+      select: { tokenBalance: true }
+    });
+    if (freshUser) {
+      params.user.tokenBalance = freshUser.tokenBalance;
+    }
+  }
+
   const promptTokensEstimate = estimatePromptTokens(params.messages);
-  const maxCompletionTokens = Math.min(getPlanCompletionLimit(params.user.plan), params.modelConfig.maxTokens);
+  const safeMaxTokens = Math.max(1024, params.modelConfig.maxTokens || 4096);
+  const maxCompletionTokens = Math.min(
+    getPlanCompletionLimit(params.user.plan),
+    safeMaxTokens
+  );
+
   const estimatedTotalTokens = promptTokensEstimate + maxCompletionTokens;
+
   const estimatedCostRub = Number(
-    (promptTokensEstimate * params.modelConfig.inputPrice + maxCompletionTokens * params.modelConfig.outputPrice).toFixed(6)
+    (
+      promptTokensEstimate * (params.modelConfig.inputPrice || 0) +
+      maxCompletionTokens * (params.modelConfig.outputPrice || 0)
+    ).toFixed(6)
   );
 
   if (params.user.tokenBalance < estimatedTotalTokens) {
@@ -80,15 +128,10 @@ export async function enforceRouterPolicy(params: {
   if (userDailyLimit !== null) {
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
-
     const aggregate = await prisma.message.aggregate({
-      where: {
-        userId: params.user.id,
-        createdAt: { gte: dayStart }
-      },
+      where: { userId: params.user.id, createdAt: { gte: dayStart } },
       _sum: { costRub: true }
     });
-
     const spentToday = Number(aggregate._sum.costRub || 0);
     if (spentToday + estimatedCostRub > userDailyLimit) {
       throw new Error("SPENDING_LIMIT_USER_DAILY_EXCEEDED");
@@ -99,14 +142,10 @@ export async function enforceRouterPolicy(params: {
   if (globalDailyLimit !== null) {
     const dayStart = new Date();
     dayStart.setUTCHours(0, 0, 0, 0);
-
     const aggregate = await prisma.message.aggregate({
-      where: {
-        createdAt: { gte: dayStart }
-      },
+      where: { createdAt: { gte: dayStart } },
       _sum: { costRub: true }
     });
-
     const spentToday = Number(aggregate._sum.costRub || 0);
     if (spentToday + estimatedCostRub > globalDailyLimit) {
       throw new Error("SPENDING_LIMIT_GLOBAL_DAILY_EXCEEDED");

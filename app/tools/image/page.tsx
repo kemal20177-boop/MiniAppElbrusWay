@@ -168,7 +168,7 @@ export default function ImageToolPage() {
             value={selectedModel}
             onChange={setSelectedModel}
             title="Выберите модель для изображения"
-            description="Nano Banana 2 и Nano Banana Pro выделены как быстрый вход для визуальных сценариев."
+            description="Nano Banana 2 и Nano Banana Pro — быстрый вход для визуальных сценариев."
             mode="image"
           />
 
