@@ -414,13 +414,13 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
   background: rgba(2,6,12,0.7);
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
-  z-index: 39;
+  z-index: 999;
 }
 .sidebar-backdrop.visible, .drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
 
 .sidebar-frame, .chat-drawer, .context-drawer {
   position: fixed; top: 14px; bottom: 14px;
-  z-index: 40;
+  z-index: 1000;
   display: grid; grid-template-rows: auto 1fr auto;
   gap: 16px; padding: 16px;
   background: rgba(8,14,28,0.97);
@@ -433,6 +433,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
 .sidebar-frame {
   left: 14px; width: min(260px, calc(100vw - 28px));
   transform: translateX(calc(-100% - 28px));
+  background: var(--surface-bg, #0d1117);
 }
 .sidebar-frame.open { transform: translateX(0); }
 
@@ -656,7 +657,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
 
 .chat-start-shell {
   width: min(940px, 100%);
-  display: grid; gap: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }
 
 .chat-start-copy {
@@ -668,6 +673,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
 .chat-start-card, .thread-shell {
   width: min(960px, 100%);
   margin: 0 auto; display: grid; gap: 16px;
+}
+
+.chat-start-card {
+  max-width: 680px;
+  width: 100%;
 }
 
 .chat-toolbar {

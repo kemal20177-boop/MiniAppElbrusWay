@@ -256,6 +256,7 @@ export default function ImageToolPage() {
           </div>
           {resultFile ? <div className="muted-text" style={{ marginTop: 12 }}>{resultFile.originalName}</div> : null}
 
+          <div className="eyebrow" style={{ marginTop: 18 }}>История</div>
           <div className="status-list" style={{ marginTop: 18 }}>
             {jobs.slice(0, 6).map((job) => (
               <div key={job.id} className="status-card">

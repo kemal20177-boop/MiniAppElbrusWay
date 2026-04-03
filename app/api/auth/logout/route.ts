@@ -15,7 +15,8 @@ async function performLogout(request: NextRequest) {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: process.env.COOKIE_SAMESITE === "none" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
     expires: new Date(0),
     path: "/"
   });
@@ -33,7 +34,8 @@ export async function GET(request: NextRequest) {
   await destroySession(token);
   response.cookies.set(sessionCookieName, "", {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: process.env.COOKIE_SAMESITE === "none" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
     expires: new Date(0),
     path: "/"
   });

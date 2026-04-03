@@ -124,11 +124,12 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [modelPickerOpen, setModelPickerOpen] = useState(true);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [files, setFiles] = useState<UserFile[]>([]);
@@ -144,6 +145,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     void loadModels();
+    void loadBalance();
   }, []);
 
   useEffect(() => {
@@ -185,15 +187,35 @@ export default function ChatPage() {
   }, [messages, loading]);
 
   async function loadModels() {
-    const response = await fetch("/api/models");
-    const payload = await response.json();
-    if (!response.ok) {
-      setError(payload.message || "Не удалось загрузить модели");
-      return;
+    setModelsLoading(true);
+    try {
+      const response = await fetch("/api/models");
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.message || "Не удалось загрузить модели");
+        return;
+      }
+      const nextModels = buildUiModels(payload.data || []).filter((model) => model.supportsChat !== false);
+      setModels(nextModels);
+      const preferred =
+        nextModels.find((model) => model.family === "chatgpt") ||
+        nextModels.find((model) => model.family === "gemini") ||
+        nextModels.find((model) => model.family === "claude") ||
+        nextModels[0];
+      if (preferred?.id) setSelectedModel(preferred.id);
+    } finally {
+      setModelsLoading(false);
     }
-    const nextModels = buildUiModels(payload.data || []).filter((model) => model.supportsChat !== false);
-    setModels(nextModels);
-    if (nextModels[0]?.id) setSelectedModel(nextModels[0].id);
+  }
+
+  async function loadBalance() {
+    try {
+      const response = await fetch("/api/auth/me");
+      const payload = await response.json();
+      if (response.ok && payload.user?.tokenBalance != null) {
+        setTokenBalance(payload.user.tokenBalance);
+      }
+    } catch {}
   }
 
   async function loadChats() {
@@ -267,9 +289,14 @@ export default function ChatPage() {
       });
 
       if (!response.ok) {
-        const payload = await response.json();
-        setError(payload.message || "Ошибка отправки");
+        let errMsg = "Ошибка отправки";
+        try {
+          const payload = await response.json();
+          errMsg = payload.message || payload.error || errMsg;
+        } catch {}
+        setError(errMsg);
         setMessages(nextMessages);
+        setLoading(false);
         return;
       }
 
@@ -303,13 +330,14 @@ export default function ChatPage() {
                   : "Произошла ошибка. Попробуйте ещё раз.";
                 setError(errMsg);
                 setMessages(nextMessages);
+                return;
               }
               if (currentEvent === "done" || currentEvent === "meta") {
                 if (parsed.chatId) newChatId = parsed.chatId as string;
                 if (typeof parsed.tokenBalance === "number") setTokenBalance(parsed.tokenBalance);
               }
-            } catch {
-              // ignore parse errors
+            } catch (parseError) {
+              console.warn("[chat-page] SSE parse error:", raw, parseError);
             }
           }
         }
@@ -389,6 +417,10 @@ export default function ChatPage() {
                 <span className="nav-link-icon"><AppIcon name="spark" size={16} /></span>
                 <span>Выбрать модель</span>
               </button>
+              <a href="/canvas" className="nav-link" title="Open full canvas">
+                <span className="nav-link-icon"><AppIcon name="edit" size={16} /></span>
+                <span>Canvas</span>
+              </a>
             </div>
           )}
         </div>
@@ -409,16 +441,12 @@ export default function ChatPage() {
                   <span className="selected-model-label">Модель</span>
                   <strong>{selectedModelMeta?.name || "Выберите модель"}</strong>
                 </div>
-                <button
-                  type="button"
-                  className="button-secondary compact-button"
-                  onClick={() => setModelPickerOpen((v) => !v)}
-                >
-                  {modelPickerOpen ? "Скрыть" : "Выбрать модель"}
+                <button type="button" className="button-secondary compact-button" onClick={() => setModelPickerOpen(true)}>
+                  Выбрать модель
                 </button>
               </div>
 
-              {modelPickerOpen && (
+              {(heroMode || modelPickerOpen) && (
                 <ModelPicker
                   models={models}
                   value={selectedModel}
@@ -431,6 +459,8 @@ export default function ChatPage() {
                   mode="chat"
                 />
               )}
+
+              {modelsLoading && <div className="muted-text">Загружаем модели...</div>}
 
               <ChatComposer
                 input={input}
@@ -481,6 +511,8 @@ export default function ChatPage() {
                 mode="chat"
               />
             )}
+
+            {modelsLoading && <div className="muted-text">Загружаем модели...</div>}
 
             <div className="thread-content" ref={threadRef} style={{ maxHeight: "60vh", overflowY: "auto" }}>
               {loadingMessages && <div className="muted-text">Открываем диалог...</div>}

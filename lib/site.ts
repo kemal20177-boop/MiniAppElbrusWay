@@ -4,7 +4,7 @@ export const siteConfig = {
   url: process.env.NEXT_PUBLIC_APP_URL || "https://elbrusway.ru"
 };
 
-export const defaultModelId = "openai/gpt-4o-mini";
+export const defaultModelId = "google/gemini-2.5-flash";
 
 export const modelPickerTabs = [
   {
