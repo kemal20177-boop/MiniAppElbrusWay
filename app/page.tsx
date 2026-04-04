@@ -5,7 +5,18 @@ import { homeUseCases, planCatalog, quickModelFamilies } from "@/lib/site";
 import { buildUiModels } from "@/lib/model-ui";
 
 export default async function HomePage() {
-  const [models, curated] = await Promise.all([getModels(), getCuratedModelSections()]);
+  let models: Awaited<ReturnType<typeof getModels>> = [];
+  let curated: Awaited<ReturnType<typeof getCuratedModelSections>> = {
+    sections: {},
+    leaders: { chatgpt: null, claude: null, gemini: null, grok: null, nanoBanana: null }
+  };
+
+  try {
+    [models, curated] = await Promise.all([getModels(), getCuratedModelSections()]);
+  } catch (err) {
+    console.error("[HomePage] Failed to load models:", err);
+  }
+
   const uiModels = buildUiModels(models as unknown as Array<Record<string, unknown>>);
   const topCards = [
     curated.leaders.chatgpt,

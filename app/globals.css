@@ -1052,14 +1052,27 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
 /* ---- АДАПТИВ ---- */
 @media (max-width: 900px) {
   .topbar {
-    align-items: flex-start;
+    min-height: 48px;
+    padding: 8px 14px;
+    gap: 8px;
+    align-items: center;
   }
-  .topbar-left, .topbar-right {
-    flex: 1 1 100%;
-    justify-content: space-between;
+  .topbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .topbar-right {
-    justify-content: flex-start;
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+  .topbar-right .button-ghost.compact-button,
+  .topbar-right .button-secondary.compact-button,
+  .topbar-right .balance-widget,
+  .topbar-right .account-pill {
+    display: none;
+  }
+  .topbar-right .topbar-actions {
+    display: flex;
   }
   .hero-home { grid-template-columns: 1fr; }
   .content-grid.two-columns { grid-template-columns: 1fr; }

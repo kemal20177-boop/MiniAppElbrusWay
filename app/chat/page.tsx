@@ -212,8 +212,9 @@ export default function ChatPage() {
     try {
       const response = await fetch("/api/auth/me");
       const payload = await response.json();
-      if (response.ok && payload.user?.tokenBalance != null) {
-        setTokenBalance(payload.user.tokenBalance);
+      const user = payload.data?.user || payload.user;
+      if (response.ok && user?.tokenBalance != null) {
+        setTokenBalance(user.tokenBalance);
       }
     } catch {}
   }
@@ -334,7 +335,10 @@ export default function ChatPage() {
               }
               if (currentEvent === "done" || currentEvent === "meta") {
                 if (parsed.chatId) newChatId = parsed.chatId as string;
-                if (typeof parsed.tokenBalance === "number") setTokenBalance(parsed.tokenBalance);
+                if (typeof parsed.tokenBalance === "number") {
+                  setTokenBalance(parsed.tokenBalance);
+                  window.dispatchEvent(new Event("elbrusway:balance-changed"));
+                }
               }
             } catch (parseError) {
               console.warn("[chat-page] SSE parse error:", raw, parseError);

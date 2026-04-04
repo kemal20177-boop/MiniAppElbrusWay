@@ -39,6 +39,22 @@ export default function ProfilePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    const refresh = async () => {
+      const response = await fetch("/api/user/profile");
+      const payload = await response.json();
+      if (response.ok && payload.user) {
+        setProfile(payload.user);
+        setPayments(payload.payments || []);
+        setReferral(payload.referral || null);
+        setName(payload.user.name || "");
+      }
+    };
+
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+
   const referralLink = useMemo(() => {
     if (!profile || !referral?.referralCode || typeof window === "undefined") return "";
     return `${window.location.origin}/auth/register?ref=${String(referral.referralCode)}`;
@@ -78,6 +94,16 @@ export default function ProfilePage() {
 
   return (
     <div className="page-stack">
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button
+          className="button-secondary compact-button"
+          type="button"
+          onClick={() => void logout()}
+          style={{ color: "var(--error)" }}
+        >
+          ↩ Выйти из аккаунта
+        </button>
+      </div>
       <section className="surface">
         <div className="eyebrow">Аккаунт</div>
         <h1 className="surface-title">Управляйте профилем, подпиской, балансом и реферальной ссылкой.</h1>
@@ -148,9 +174,6 @@ export default function ProfilePage() {
             <div className="toolbar-row">
               <button className="button-primary" type="submit">
                 Сохранить
-              </button>
-              <button className="button-ghost" type="button" onClick={() => void logout()}>
-                Выйти
               </button>
             </div>
           </form>

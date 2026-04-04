@@ -30,6 +30,7 @@ function PaymentSuccessContent() {
         if (paymentStatus === "SUCCEEDED") {
           if (!cancelled) {
             setStatus("Платеж подтвержден, токены уже начислены на баланс.");
+            window.dispatchEvent(new Event("elbrusway:balance-changed"));
           }
           return;
         }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Footer } from "@/components/ui/footer";
 import { Sidebar } from "@/components/app/sidebar";
 import { AppIcon } from "@/components/app/icon";
@@ -35,6 +35,8 @@ function usesWorkspaceNav(pathname: string) {
 export function AppShell({ children, user }: { children: ReactNode; user: ShellUser | null }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [liveBalance, setLiveBalance] = useState(user?.tokenBalance ?? 0);
+  const [livePlan, setLivePlan] = useState(user?.plan || "Free");
   const authScreen = isAuthRoute(pathname);
   const compactBrand = pathname === "/chat" || pathname.startsWith("/tools/");
   const showRail = usesWorkspaceNav(pathname);
@@ -42,6 +44,41 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
   useEffect(() => {
     setSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (user) {
+      setLiveBalance(user.tokenBalance);
+      setLivePlan(user.plan || "Free");
+    }
+  }, [user]);
+
+  const refreshBalance = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const res = await fetch("/api/auth/me");
+      const payload = await res.json();
+      const nextUser = payload.data?.user || payload.user;
+      if (res.ok && nextUser) {
+        setLiveBalance(nextUser.tokenBalance ?? 0);
+        setLivePlan(nextUser.plan || "Free");
+      }
+    } catch {}
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = window.setInterval(refreshBalance, 30_000);
+    window.addEventListener("focus", refreshBalance);
+    window.addEventListener("elbrusway:balance-changed", refreshBalance);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshBalance);
+      window.removeEventListener("elbrusway:balance-changed", refreshBalance);
+    };
+  }, [user, refreshBalance]);
 
   if (authScreen) {
     return <div className="auth-root">{children}</div>;
@@ -73,9 +110,9 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
                 Пополнить
               </Link>
               <div className="balance-widget">
-                <strong>{(user.tokenBalance / 1_000_000).toFixed(1)}M</strong>
+                <strong>{(liveBalance / 1_000_000).toFixed(1)}M</strong>
                 <span>токенов</span>
-                <span className="plan-pill">{user.plan || "Free"}</span>
+                <span className="plan-pill">{livePlan}</span>
               </div>
               <Link href="/profile" className="account-pill">
                 <span className="account-title">{user.name || user.email}</span>
