@@ -24,7 +24,13 @@ export async function getRedisClient() {
 
   if (!globalThis.__elbruswayRedisConnectPromise) {
     globalThis.__elbruswayRedisConnectPromise = (async () => {
-      const client = createClient({ url: redisUrl });
+      const client = createClient({
+        url: redisUrl,
+        socket: {
+          connectTimeout: 3000,
+          reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 500, 2000))
+        }
+      });
       client.on("error", () => {});
 
       try {

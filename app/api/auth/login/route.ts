@@ -5,6 +5,10 @@ import { getFirstValidationMessage, loginSchema } from "@/lib/validators";
 import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
 
+function resolveSameSite() {
+  return process.env.COOKIE_SAMESITE === "none" ? "none" : "lax";
+}
+
 function resolveLoginError(error: unknown) {
   if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
     return "Неверный email или пароль";
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set(sessionCookieName, session.token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: resolveSameSite(),
       secure: process.env.NODE_ENV === "production",
       expires: new Date(session.expiresAt),
       path: "/"

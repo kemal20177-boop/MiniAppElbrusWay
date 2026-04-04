@@ -6,6 +6,10 @@ import { ensureStore } from "@/lib/store";
 import { prisma } from "@/lib/prisma";
 import { ensureReferralProgram, generateReferralCode, resolveReferrerByCode } from "@/lib/billing";
 
+function resolveSameSite() {
+  return process.env.COOKIE_SAMESITE === "none" ? "none" : "lax";
+}
+
 function resolveRegisterError(error: unknown) {
   if (!(error instanceof Error)) {
     return "Регистрация не удалась";
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set(sessionCookieName, session.token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: resolveSameSite(),
       secure: process.env.NODE_ENV === "production",
       expires: new Date(session.expiresAt),
       path: "/"

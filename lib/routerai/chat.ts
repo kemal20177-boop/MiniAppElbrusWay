@@ -62,24 +62,45 @@ export async function createRouterChatCompletion(options: RouterChatOptions) {
 }
 
 export async function createRouterChatStream(options: RouterChatOptions) {
-  return routerAiStreamRequest({
-    path: "/chat/completions",
-    method: "POST",
-    userId: options.userId,
-    projectId: options.projectId,
-    chatId: options.chatId,
-    eventType: "routerai.chat.stream",
+  const baseBody = {
     model: options.model,
-    body: {
+    messages: options.messages,
+    stream: true,
+    max_tokens: options.maxTokens || 2048,
+    ...(options.modalities?.length ? { modalities: options.modalities } : {}),
+    ...(options.imageConfig ? { image_config: options.imageConfig } : {}),
+    ...(options.plugins?.length ? { plugins: options.plugins } : {}),
+    ...(options.webSearchOptions ? { web_search_options: options.webSearchOptions } : {})
+  };
+
+  try {
+    return await routerAiStreamRequest({
+      path: "/chat/completions",
+      method: "POST",
+      userId: options.userId,
+      projectId: options.projectId,
+      chatId: options.chatId,
+      eventType: "routerai.chat.stream",
       model: options.model,
-      messages: options.messages,
-      stream: true,
-      stream_options: { include_usage: true },
-      max_tokens: options.maxTokens || 2048,
-      ...(options.modalities?.length ? { modalities: options.modalities } : {}),
-      ...(options.imageConfig ? { image_config: options.imageConfig } : {}),
-      ...(options.plugins?.length ? { plugins: options.plugins } : {}),
-      ...(options.webSearchOptions ? { web_search_options: options.webSearchOptions } : {})
+      body: {
+        ...baseBody,
+        stream_options: { include_usage: true }
+      }
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes(":400")) {
+      throw error;
     }
-  });
+
+    return routerAiStreamRequest({
+      path: "/chat/completions",
+      method: "POST",
+      userId: options.userId,
+      projectId: options.projectId,
+      chatId: options.chatId,
+      eventType: "routerai.chat.stream",
+      model: options.model,
+      body: baseBody
+    });
+  }
 }

@@ -22,7 +22,7 @@ const FREE_DAILY_TOKENS = 50_000;
 
 function estimatePromptTokens(messages: Array<{ content: string }>) {
   const characters = messages.reduce((sum, m) => sum + m.content.length, 0);
-  return Math.max(1, Math.ceil(characters / 3));
+  return Math.max(1, Math.ceil(characters / 2));
 }
 
 function parseLimit(name: string) {
