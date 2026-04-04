@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPaymentStatusForUser } from "@/lib/app";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const user = await getCurrentUserFromRequest(request);
   if (!user) {
@@ -10,7 +12,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   try {
     const payment = await getPaymentStatusForUser(user.id, params.id);
-    return NextResponse.json({ ok: true, payment });
+    return NextResponse.json(
+      { ok: true, payment },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"
+        }
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: "PAYMENT_STATUS_FAILED", message: (error as Error).message },

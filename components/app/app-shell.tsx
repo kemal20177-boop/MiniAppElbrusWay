@@ -56,7 +56,7 @@ export function AppShell({ children, user }: { children: ReactNode; user: ShellU
     if (!user) return;
 
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
       const payload = await res.json();
       const nextUser = payload.data?.user || payload.user;
       if (res.ok && nextUser) {

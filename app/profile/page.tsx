@@ -24,7 +24,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void (async () => {
-      const [profileResponse, statsResponse] = await Promise.all([fetch("/api/user/profile"), fetch("/api/user/stats")]);
+      const [profileResponse, statsResponse] = await Promise.all([
+        fetch("/api/user/profile", { cache: "no-store" }),
+        fetch("/api/user/stats", { cache: "no-store" })
+      ]);
       const profilePayload = await profileResponse.json();
       const statsPayload = await statsResponse.json();
       if (profileResponse.ok) {
@@ -41,7 +44,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const refresh = async () => {
-      const response = await fetch("/api/user/profile");
+      const response = await fetch("/api/user/profile", { cache: "no-store" });
       const payload = await response.json();
       if (response.ok && payload.user) {
         setProfile(payload.user);

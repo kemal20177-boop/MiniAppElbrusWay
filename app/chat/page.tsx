@@ -210,7 +210,7 @@ export default function ChatPage() {
 
   async function loadBalance() {
     try {
-      const response = await fetch("/api/auth/me");
+      const response = await fetch("/api/auth/me", { cache: "no-store" });
       const payload = await response.json();
       const user = payload.data?.user || payload.user;
       if (response.ok && user?.tokenBalance != null) {

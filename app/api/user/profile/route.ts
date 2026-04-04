@@ -4,6 +4,8 @@ import { getUserReferralStats } from "@/lib/billing";
 import { profileUpdateSchema } from "@/lib/validators";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const user = await getCurrentUserFromRequest(request);
   if (!user) {
@@ -24,7 +26,14 @@ export async function GET(request: NextRequest) {
     }
   });
   const referral = await getUserReferralStats(user.id);
-  return NextResponse.json({ ok: true, user: sanitizeUser(user), payments, referral });
+  return NextResponse.json(
+    { ok: true, user: sanitizeUser(user), payments, referral },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"
+      }
+    }
+  );
 }
 
 export async function PATCH(request: NextRequest) {
